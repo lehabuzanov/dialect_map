@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{PAGE_TITLE}}</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css">
+    <style>
+{{INLINE_LEAFLET_CSS}}
+    </style>
+    <style>
+{{INLINE_APP_CSS}}
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Панель управления">
+        <div class="sidebar__header">
+          <h1 class="sidebar__title">Интерактивная карта русских говоров Удмуртии</h1>
+          <p class="sidebar__subtitle">Предфинальная учебная офлайн-версия для локального просмотра и публикации как статической страницы</p>
+        </div>
+
+        <section class="panel demo-banner" id="demo-banner"></section>
+
+        <section class="panel">
+          <label class="field-label" for="global-search">Поиск</label>
+          <input
+            id="global-search"
+            class="search-input"
+            type="search"
+            placeholder="Пункт, район, признак, языковая единица"
+            autocomplete="off"
+          >
+          <div id="search-results" class="search-results"></div>
+        </section>
+
+        <section class="panel">
+          <div class="field-label">Разделы</div>
+          <div id="section-tabs" class="tabs" role="tablist" aria-label="Фильтр по разделу"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__topline">
+            <div class="field-label">Слои</div>
+            <button id="instruction-button" class="link-button" type="button">Инструкция</button>
+          </div>
+          <div id="layer-controls" class="layer-controls"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__topline">
+            <div class="field-label">Признаки</div>
+            <button id="clear-selection-button" class="link-button" type="button">Сбросить выбор</button>
+          </div>
+          <div id="feature-count" class="panel-note"></div>
+          <div id="feature-list" class="feature-list" aria-live="polite"></div>
+        </section>
+
+        <section class="panel">
+          <div class="field-label">Карточка</div>
+          <div id="selection-card" class="selection-card">
+            <p class="empty-state">Выберите населённый пункт, район или признак.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="field-label">Легенда</div>
+          <div id="legend" class="legend"></div>
+        </section>
+      </aside>
+
+      <main class="map-panel">
+        <div class="map-toolbar">
+          <div id="map-status" class="map-status">Подготовка карты…</div>
+          <div id="map-source-note" class="map-source-note"></div>
+        </div>
+        <div id="map" class="map-canvas" aria-label="Карта русских говоров Удмуртии"></div>
+      </main>
+    </div>
+
+    <div
+      id="instruction-modal"
+      class="modal"
+      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="instruction-title"
+    >
+      <div class="modal__backdrop"></div>
+      <div class="modal__dialog">
+        <div class="modal__header">
+          <h2 id="instruction-title">Инструкция пользователя</h2>
+          <button id="close-instruction-button" class="modal__close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div id="instruction-content" class="modal__content"></div>
+      </div>
+    </div>
+
+    <script id="app-data" type="application/json">{{APP_DATA_JSON}}</script>
+    <script>
+{{INLINE_LEAFLET_JS}}
+    </script>
+    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@latest/leaflet-maplibre-gl.js"></script>
+    <script>
+{{INLINE_APP_JS}}
+    </script>
+  </body>
+</html>
