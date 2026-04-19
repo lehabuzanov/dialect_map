@@ -9,6 +9,7 @@ import streamlit.components.v1 as components
 
 ROOT = Path(__file__).resolve().parent
 SCRIPTS_DIR = ROOT / "scripts"
+APP_VERSION = "2026-04-20-real-settlements-v1"
 
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -48,10 +49,12 @@ st.set_page_config(
 
 st.title("Интерактивная карта русских говоров Удмуртии")
 st.caption("Приложение работает напрямую через Streamlit и формирует карту во время запуска.")
+st.caption(f"Версия сборки: {APP_VERSION}")
 
 with st.sidebar:
     st.subheader("Режим запуска")
     st.write("Проект больше не использует предварительную статическую сборку.")
+    st.caption(f"Сборка: {APP_VERSION}")
     if st.button("Обновить данные и интерфейс"):
         build_runtime_html.clear()
         st.rerun()
