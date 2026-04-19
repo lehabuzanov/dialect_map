@@ -39,13 +39,14 @@
   const observationsByFeature = groupBy(data.observations, "feature_id");
   const districtPoints = groupPointsByDistrict();
   const districtStats = buildDistrictStats();
-  const landscapeZones = data.geojson.landscapes || [];
   const allAreas = (data.geojson.areas || []).concat(data.geojson.areas_provisional || []);
   const manualAreas = (data.geojson.areas || []).slice();
   const provisionalAreas = (data.geojson.areas_provisional || []).slice();
   const isoglosses = (data.geojson.isoglosses || []).concat(data.geojson.isoglosses_provisional || []);
   const borderBounds = getGeoJsonBounds(data.geojson.border);
   const sortedFeatures = data.features.slice().sort((left, right) => collator.compare(left.alphabet_key || left.feature_name, right.alphabet_key || right.feature_name));
+  const atlasSections = (data.meta.sections || []).slice();
+  const questionColorPalette = ["#2c5aa0", "#c76a0e", "#147a7e", "#6a49a5", "#8f2d2d", "#648b23"];
 
   const ui = {
     demoBanner: document.getElementById("demo-banner"),
@@ -54,6 +55,7 @@
     sectionTabs: document.getElementById("section-tabs"),
     layerControls: document.getElementById("layer-controls"),
     featureCount: document.getElementById("feature-count"),
+    questionSelect: document.getElementById("question-select"),
     featureList: document.getElementById("feature-list"),
     selectionCard: document.getElementById("selection-card"),
     legend: document.getElementById("legend"),
@@ -65,13 +67,13 @@
 
   const state = {
     search: "",
-    section: "Все",
+    section: atlasSections[0] || "",
     selectedFeatureIds: [],
     selectedFeatureId: "",
     selectedPointId: "",
     selectedDistrict: "",
     basemapStatus: "fallback",
-    layers: { landscape: true, districts: true, points: true, areas: true, isoglosses: true }
+    layers: { districts: true, points: true, areas: true, isoglosses: true }
   };
 
   const map = L.map("map", {
@@ -89,8 +91,6 @@
 
   map.createPane("districts");
   map.getPane("districts").style.zIndex = "410";
-  map.createPane("landscape");
-  map.getPane("landscape").style.zIndex = "405";
   map.createPane("areas");
   map.getPane("areas").style.zIndex = "420";
   map.createPane("isoglosses");
@@ -99,7 +99,6 @@
   map.getPane("points").style.zIndex = "440";
 
   const layerGroups = {
-    landscape: L.layerGroup().addTo(map),
     districts: L.layerGroup().addTo(map),
     areas: L.layerGroup().addTo(map),
     isoglosses: L.layerGroup().addTo(map),
@@ -134,6 +133,15 @@
       state.selectedFeatureId = "";
       state.selectedPointId = "";
       state.selectedDistrict = "";
+      refresh({ fitMap: true });
+    });
+
+    ui.questionSelect.addEventListener("change", (event) => {
+      const featureId = event.target.value;
+      if (!featureId) {
+        return;
+      }
+      applyFeatureSelection(featureId, { clearSpatialSelection: true });
       refresh({ fitMap: true });
     });
 
@@ -174,9 +182,10 @@
 
   function renderSectionTabs() {
     ui.sectionTabs.innerHTML = "";
-    ["Все", "Гласные", "Согласные", "Морфология"].forEach((section) => {
+    atlasSections.forEach((section) => {
       const button = buttonElement("tab-button" + (state.section === section ? " is-active" : ""), section, () => {
         state.section = section;
+        normalizeSelectionForSection();
         refresh({ fitMap: false });
       });
       ui.sectionTabs.appendChild(button);
@@ -185,7 +194,7 @@
 
   function renderLayerControls() {
     ui.layerControls.innerHTML = "";
-    [["landscape", "Ландшафт"], ["districts", "Границы районов"], ["points", "Населённые пункты"], ["areas", "Ареалы"], ["isoglosses", "Изоглоссы"]].forEach(([key, label]) => {
+    [["districts", "Границы районов"], ["points", "Населённые пункты"], ["areas", "Ареалы"], ["isoglosses", "Изоглоссы"]].forEach(([key, label]) => {
       const wrapper = document.createElement("label");
       wrapper.className = "layer-checkbox";
       const input = document.createElement("input");
@@ -205,7 +214,7 @@
   function renderSearchResults() {
     const query = normalizeText(state.search);
     if (!query) {
-      ui.searchResults.innerHTML = '<div class="panel-note">Поиск работает по населённым пунктам, районам, названиям признаков и языковым единицам.</div>';
+      ui.searchResults.innerHTML = '<div class="panel-note">Поиск работает по населённым пунктам, районам, вопросам и вариантам ответа.</div>';
       return;
     }
 
@@ -230,7 +239,7 @@
     }));
 
     ui.searchResults.innerHTML = "";
-    [buildSearchGroup("Населённые пункты", pointItems), buildSearchGroup("Районы", districtItems), buildSearchGroup("Признаки", featureItems)].filter(Boolean).forEach((group) => ui.searchResults.appendChild(group));
+    [buildSearchGroup("Населённые пункты", pointItems), buildSearchGroup("Районы", districtItems), buildSearchGroup("Вопросы", featureItems)].filter(Boolean).forEach((group) => ui.searchResults.appendChild(group));
     if (!ui.searchResults.children.length) {
       ui.searchResults.innerHTML = '<div class="panel-note">Совпадений не найдено.</div>';
     }
@@ -238,18 +247,35 @@
 
   function renderFeatureList() {
     const visibleFeatures = getVisibleFeatures();
-    ui.featureCount.textContent = `Показано признаков: ${visibleFeatures.length} из ${data.features.length}`;
+    ui.featureCount.textContent = `Показано вопросов: ${visibleFeatures.length} из ${data.features.length}`;
     ui.featureList.innerHTML = "";
+    ui.questionSelect.innerHTML = "";
+
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = state.section ? `Выберите вопрос атласа ${state.section}` : "Выберите вопрос";
+    ui.questionSelect.appendChild(placeholder);
 
     visibleFeatures.forEach((feature) => {
       const observationCount = (observationsByFeature.get(feature.feature_id) || []).length;
       const isSelected = state.selectedFeatureIds.includes(feature.feature_id);
       const isPrimary = state.selectedFeatureId === feature.feature_id;
+      const option = document.createElement("option");
+      option.value = feature.feature_id;
+      option.textContent = feature.feature_name;
+      option.selected = isPrimary;
+      ui.questionSelect.appendChild(option);
       ui.featureList.appendChild(buttonElement("feature-item" + (isSelected ? " is-selected" : "") + (isPrimary ? " is-primary" : ""), `<span class="feature-item__title">${escapeHtml(feature.feature_name)}</span><div class="feature-meta">${escapeHtml(feature.section)} · ${escapeHtml(feature.subsection)}</div><div class="feature-meta">Наблюдений: ${observationCount}</div>`, () => {
         applyFeatureSelection(feature.feature_id, { clearSpatialSelection: true });
         refresh({ fitMap: true });
       }, true));
     });
+
+    if (!visibleFeatures.length) {
+      ui.questionSelect.disabled = true;
+    } else {
+      ui.questionSelect.disabled = false;
+    }
   }
 
   function renderSelectionCard() {
@@ -272,7 +298,7 @@
       bindDynamicButtons();
       return;
     }
-    ui.selectionCard.innerHTML = '<p class="empty-state">Выберите населённый пункт, район или признак.</p>';
+    ui.selectionCard.innerHTML = '<p class="empty-state">Выберите населённый пункт, район или вопрос.</p>';
   }
 
   function renderPointCard(point) {
@@ -290,16 +316,17 @@
 
     const observationRows = allObservations.length ? allObservations.map((observation) => {
       const feature = featuresById.get(observation.feature_id);
-      return `<li><strong>${escapeHtml(feature ? feature.feature_name : observation.feature_id)}</strong>: ${escapeHtml(observation.attested_value || "значение не указано")}<div class="feature-meta">${escapeHtml([observation.source_year, observation.collector].filter(Boolean).join(" · "))}</div></li>`;
+      const variants = [observation.attested_value, observation.secondary_value].filter(Boolean).join(" / ");
+      return `<li><strong>${escapeHtml(feature ? feature.feature_name : observation.feature_id)}</strong>: ${escapeHtml(variants || "ответ не указан")}<div class="feature-meta">${escapeHtml([observation.source_year, observation.collector].filter(Boolean).join(" · "))}</div></li>`;
     }).join("") : "<li>Для этого пункта наблюдения пока не добавлены.</li>";
 
-    return `<h3 class="selection-card__title">${escapeHtml(point.settlement)}</h3><div class="selection-card__subtitle">${escapeHtml(point.district)}</div><div class="selection-card__table"><div class="selection-card__label">Регион</div><div class="selection-card__value">${escapeHtml(point.region)}</div><div class="selection-card__label">Координаты</div><div class="selection-card__value">${formatCoordinate(point.latitude)}, ${formatCoordinate(point.longitude)}</div><div class="selection-card__label">Ландшафт</div><div class="selection-card__value">${escapeHtml(point.landscape || "—")}</div><div class="selection-card__label">Комментарий</div><div class="selection-card__value">${escapeHtml(point.comment || "—")}</div><div class="selection-card__label">Наблюдений</div><div class="selection-card__value">${allObservations.length}</div></div><div class="selection-card__section"><div class="field-label">Признаки в пункте</div><div class="chip-cloud">${featureButtons || '<span class="panel-note">Наблюдения не заполнены.</span>'}</div></div><div class="selection-card__section"><div class="field-label">Значения признаков</div><ul class="selection-card__list">${observationRows}</ul></div>`;
+    return `<h3 class="selection-card__title">${escapeHtml(point.settlement)}</h3><div class="selection-card__subtitle">${escapeHtml(point.district)}</div><div class="selection-card__table"><div class="selection-card__label">Регион</div><div class="selection-card__value">${escapeHtml(point.region)}</div><div class="selection-card__label">Координаты</div><div class="selection-card__value">${formatCoordinate(point.latitude)}, ${formatCoordinate(point.longitude)}</div><div class="selection-card__label">Комментарий</div><div class="selection-card__value">${escapeHtml(point.comment || "—")}</div><div class="selection-card__label">Наблюдений</div><div class="selection-card__value">${allObservations.length}</div></div><div class="selection-card__section"><div class="field-label">Вопросы в пункте</div><div class="chip-cloud">${featureButtons || '<span class="panel-note">Наблюдения не заполнены.</span>'}</div></div><div class="selection-card__section"><div class="field-label">Ответы по вопросам</div><ul class="selection-card__list">${observationRows}</ul></div>`;
   }
 
   function renderDistrictCard(district) {
     const pointButtons = district.points.map((point) => `<button type="button" class="chip-button" data-action="select-point" data-point-id="${escapeAttribute(point.point_id)}">${escapeHtml(point.settlement)}</button>`).join("");
     const topFeatures = district.topFeatures.length ? district.topFeatures.map((item) => `<li>${escapeHtml(item.name)} (${item.count})</li>`).join("") : "<li>Для выбранного района наблюдений пока нет.</li>";
-    return `<h3 class="selection-card__title">${escapeHtml(district.name)}</h3><div class="selection-card__subtitle">${escapeHtml(district.adminType)}</div><div class="selection-card__table"><div class="selection-card__label">Населённых пунктов</div><div class="selection-card__value">${district.pointCount}</div><div class="selection-card__label">Наблюдений</div><div class="selection-card__value">${district.observationCount}</div><div class="selection-card__label">Признаков</div><div class="selection-card__value">${district.featureCount}</div></div><div class="selection-card__section"><div class="field-label">Пункты в районе</div><div class="chip-cloud">${pointButtons || '<span class="panel-note">Пункты пока не привязаны.</span>'}</div></div><div class="selection-card__section"><div class="field-label">Краткая сводка по району</div><ul class="selection-card__list">${topFeatures}</ul></div>`;
+    return `<h3 class="selection-card__title">${escapeHtml(district.name)}</h3><div class="selection-card__subtitle">${escapeHtml(district.adminType)}</div><div class="selection-card__table"><div class="selection-card__label">Населённых пунктов</div><div class="selection-card__value">${district.pointCount}</div><div class="selection-card__label">Наблюдений</div><div class="selection-card__value">${district.observationCount}</div><div class="selection-card__label">Вопросов</div><div class="selection-card__value">${district.featureCount}</div></div><div class="selection-card__section"><div class="field-label">Пункты в районе</div><div class="chip-cloud">${pointButtons || '<span class="panel-note">Пункты пока не привязаны.</span>'}</div></div><div class="selection-card__section"><div class="field-label">Краткая сводка по району</div><ul class="selection-card__list">${topFeatures}</ul></div>`;
   }
 
   function renderFeatureCard(feature) {
@@ -313,8 +340,8 @@
     const mapCoverageNote = buildFeatureCoverageNote(observations.length, manualAreaCount, provisionalAreaCount, relatedFeatureNames.length ? getVisibleIsoglosses().length : 0);
     const settlementButtons = Array.from(new Set(observations.map((item) => item.point_id))).map((pointId) => pointsById.get(pointId)).filter(Boolean).sort((left, right) => collator.compare(left.settlement, right.settlement)).map((point) => `<button type="button" class="chip-button" data-action="select-point" data-point-id="${escapeAttribute(point.point_id)}">${escapeHtml(point.settlement)}</button>`).join("");
     const examples = feature.example_list || [];
-    const multiFeatureNote = relatedFeatureNames.length ? `Одновременно выбраны и другие признаки: ${relatedFeatureNames.join(", ")}.` : "";
-    return `<h3 class="selection-card__title">${escapeHtml(feature.feature_name)}</h3><div class="selection-card__subtitle">${escapeHtml(feature.section)} · ${escapeHtml(feature.subsection)}</div>${multiFeatureNote ? `<div class="panel-note">${escapeHtml(multiFeatureNote)}</div>` : ""}<div class="selection-card__table"><div class="selection-card__label">Вопрос</div><div class="selection-card__value">${escapeHtml(feature.question_text || "—")}</div><div class="selection-card__label">Языковые единицы</div><div class="selection-card__value">${escapeHtml(buildLinguisticUnits(feature).join(", ") || "—")}</div><div class="selection-card__label">Наблюдений</div><div class="selection-card__value">${observations.length}</div><div class="selection-card__label">Ручной ареал</div><div class="selection-card__value">${manualAreaCount ? `да (${manualAreaCount})` : "нет"}</div><div class="selection-card__label">Предварительный ареал</div><div class="selection-card__value">${provisionalAreaCount ? `да (${provisionalAreaCount})` : "нет"}</div><div class="selection-card__label">Изоглоссы</div><div class="selection-card__value">${state.selectedFeatureIds.length === 2 ? (getVisibleIsoglosses().length ? `да (${getVisibleIsoglosses().length})` : "нет") : "только для пары признаков"}</div></div>${mapCoverageNote ? `<div class="panel-note">${escapeHtml(mapCoverageNote)}</div>` : ""}<div class="selection-card__section"><div class="field-label">Примеры</div>${examples.length ? `<ul class="selection-card__list">${examples.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : '<div class="panel-note">Примеры пока не добавлены.</div>'}</div><div class="selection-card__section"><div class="field-label">Населённые пункты</div><div class="chip-cloud">${settlementButtons || '<span class="panel-note">Пункты пока не заполнены.</span>'}</div></div>`;
+    const multiFeatureNote = relatedFeatureNames.length ? `Одновременно выбраны и другие вопросы: ${relatedFeatureNames.join(", ")}.` : "";
+    return `<h3 class="selection-card__title">${escapeHtml(feature.feature_name)}</h3><div class="selection-card__subtitle">${escapeHtml(feature.section)} · ${escapeHtml(feature.subsection)}</div>${multiFeatureNote ? `<div class="panel-note">${escapeHtml(multiFeatureNote)}</div>` : ""}<div class="selection-card__table"><div class="selection-card__label">Вопрос</div><div class="selection-card__value">${escapeHtml(feature.question_text || "—")}</div><div class="selection-card__label">Варианты ответа</div><div class="selection-card__value">${escapeHtml(buildLinguisticUnits(feature).join(", ") || "—")}</div><div class="selection-card__label">Наблюдений</div><div class="selection-card__value">${observations.length}</div><div class="selection-card__label">Ручной ареал</div><div class="selection-card__value">${manualAreaCount ? `да (${manualAreaCount})` : "нет"}</div><div class="selection-card__label">Предварительный ареал</div><div class="selection-card__value">${provisionalAreaCount ? `да (${provisionalAreaCount})` : "нет"}</div><div class="selection-card__label">Изоглоссы</div><div class="selection-card__value">${state.selectedFeatureIds.length === 2 ? (getVisibleIsoglosses().length ? `да (${getVisibleIsoglosses().length})` : "нет") : "только для пары вопросов"}</div></div>${mapCoverageNote ? `<div class="panel-note">${escapeHtml(mapCoverageNote)}</div>` : ""}<div class="selection-card__section"><div class="field-label">Примеры ответов</div>${examples.length ? `<ul class="selection-card__list">${examples.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : '<div class="panel-note">Примеры пока не добавлены.</div>'}</div><div class="selection-card__section"><div class="field-label">Населённые пункты</div><div class="chip-cloud">${settlementButtons || '<span class="panel-note">Пункты пока не заполнены.</span>'}</div></div>`;
   }
 
   function bindDynamicButtons() {
@@ -337,13 +364,9 @@
   }
 
   function renderLegend() {
-    const rows = ['<div class="legend-row"><span class="legend-point"></span><span>Населённый пункт</span></div>', '<div class="legend-row"><span class="legend-point is-selected"></span><span>Выбранный пункт</span></div>', '<div class="legend-row"><span class="legend-landscape"></span><span>Ландшафтная зона</span></div>', '<div class="legend-row"><span class="legend-line"></span><span>Граница района</span></div>', '<div class="legend-row"><span class="legend-area"></span><span>Ручной ареал</span></div>', '<div class="legend-row"><span class="legend-area is-provisional"></span><span>Предварительный ареал</span></div>', '<div class="legend-row"><span class="legend-line is-isogloss"></span><span>Изоглосса между двумя признаками</span></div>'];
-    if (state.layers.landscape && landscapeZones.length) {
-      rows.push('<div class="field-label">Ландшафтные зоны</div>');
-      landscapeZones.forEach((zone) => rows.push(`<div class="legend-row"><span class="legend-landscape" style="background:${zone.properties.fill_color}; border-color:${zone.properties.border_color};"></span><span>${escapeHtml(zone.properties.title)}</span></div>`));
-    }
+    const rows = ['<div class="legend-row"><span class="legend-point"></span><span>Населённый пункт</span></div>', '<div class="legend-row"><span class="legend-point is-selected"></span><span>Выбранный пункт</span></div>', '<div class="legend-row"><span class="legend-line"></span><span>Граница района</span></div>', '<div class="legend-row"><span class="legend-area"></span><span>Ручной ареал</span></div>', '<div class="legend-row"><span class="legend-area is-provisional"></span><span>Предварительный ареал</span></div>', '<div class="legend-row"><span class="legend-line is-isogloss"></span><span>Изоглосса между двумя вопросами</span></div>'];
     if (state.selectedFeatureIds.length) {
-      rows.push('<div class="field-label">Активные признаки</div>');
+      rows.push('<div class="field-label">Активные вопросы</div>');
       state.selectedFeatureIds.forEach((featureId) => {
         const feature = featuresById.get(featureId);
         rows.push(`<div class="legend-row"><span class="legend-swatch" style="background:${getFeatureBaseColor(featureId)}"></span><span>${escapeHtml(feature ? feature.feature_name : featureId)}${featureId === state.selectedFeatureId ? " (активный)" : ""}</span></div>`);
@@ -353,16 +376,12 @@
   }
 
   function renderMap(shouldFitMap) {
-    layerGroups.landscape.clearLayers();
     layerGroups.districts.clearLayers();
     layerGroups.areas.clearLayers();
     layerGroups.isoglosses.clearLayers();
     layerGroups.points.clearLayers();
 
     const fitBounds = [];
-    if (state.layers.landscape) {
-      renderLandscapeLayers();
-    }
     if (state.layers.districts) {
       renderDistrictLayers(fitBounds);
     }
@@ -378,12 +397,6 @@
     if (shouldFitMap) {
       fitMapToCurrentSelection(fitBounds);
     }
-  }
-
-  function renderLandscapeLayers() {
-    landscapeZones.forEach((feature) => {
-      L.geoJSON(feature, { pane: "landscape", style: { color: feature.properties.border_color || "#9fb2bf", weight: 1, dashArray: "6 6", fillColor: feature.properties.fill_color || "#dde5ea", fillOpacity: 0.22 } }).bindTooltip(`${feature.properties.title} · ${feature.properties.point_count} пунктов`, { sticky: true, className: "district-tooltip" }).addTo(layerGroups.landscape);
-    });
   }
 
   function renderDistrictLayers(fitBounds) {
@@ -530,11 +543,11 @@
   function renderStatus() {
     const parts = [`Пунктов на карте: ${getVisiblePoints().length}`];
     if (state.selectedFeatureIds.length) {
-      parts.push(`Признаков: ${state.selectedFeatureIds.length}`);
+      parts.push(`Вопросов: ${state.selectedFeatureIds.length}`);
     }
     if (state.selectedFeatureId) {
       const feature = featuresById.get(state.selectedFeatureId);
-      parts.push(`Активный признак: ${feature ? feature.feature_name : state.selectedFeatureId}`);
+      parts.push(`Активный вопрос: ${feature ? feature.feature_name : state.selectedFeatureId}`);
     }
     if (state.selectedFeatureIds.length === 2) {
       parts.push(`Изоглосс: ${getVisibleIsoglosses().length}`);
@@ -610,9 +623,22 @@
     }
   }
 
+  function normalizeSelectionForSection() {
+    if (!state.section) {
+      return;
+    }
+    state.selectedFeatureIds = state.selectedFeatureIds.filter((featureId) => {
+      const feature = featuresById.get(featureId);
+      return feature && feature.section === state.section;
+    });
+    if (!state.selectedFeatureIds.includes(state.selectedFeatureId)) {
+      state.selectedFeatureId = state.selectedFeatureIds[state.selectedFeatureIds.length - 1] || "";
+    }
+  }
+
   function getVisibleFeatures() {
     const query = normalizeText(state.search);
-    return sortedFeatures.filter((feature) => (state.section === "Все" || feature.section === state.section) && (!query || featureMatchesQuery(feature, query)));
+    return sortedFeatures.filter((feature) => (!state.section || feature.section === state.section) && (!query || featureMatchesQuery(feature, query)));
   }
 
   function getVisiblePoints() {
@@ -666,12 +692,12 @@
 
   function buildFeatureCoverageNote(observationCount, manualAreaCount, provisionalAreaCount, isoglossCount) {
     if (!observationCount) {
-      return "Для этого признака пока нет наблюдений в демо-наборе.";
+      return "Для этого вопроса пока нет наблюдений в наборе данных.";
     }
     if (manualAreaCount || provisionalAreaCount || isoglossCount) {
       return "";
     }
-    return "Для этого признака сейчас показаны связанные точки без отдельного ареала и без изоглоссы.";
+    return "Для этого вопроса сейчас показаны связанные точки без отдельного ареала и без изоглоссы.";
   }
 
   function createBaseMap() {
@@ -741,8 +767,11 @@
   }
 
   function getFeatureBaseColor(featureId) {
-    const feature = featuresById.get(featureId);
-    return baseStylePalette[(feature && feature.map_style) || "area_blue"] || "#2c5aa0";
+    const selectedIndex = state.selectedFeatureIds.indexOf(featureId);
+    if (selectedIndex >= 0) {
+      return questionColorPalette[selectedIndex % questionColorPalette.length];
+    }
+    return questionColorPalette[Math.abs(hashString(featureId)) % questionColorPalette.length];
   }
 
   function pointFillColor(point) {
@@ -769,6 +798,15 @@
       return true;
     }
     return normalizeText([point.settlement, point.district, point.region].join(" ")).includes(query);
+  }
+
+  function hashString(value) {
+    let hash = 0;
+    for (const symbol of String(value || "")) {
+      hash = ((hash << 5) - hash) + symbol.charCodeAt(0);
+      hash |= 0;
+    }
+    return hash;
   }
 
   function findDistrictLayer(districtName) {
@@ -799,7 +837,7 @@
   function buildAreaPopup(feature) {
     const featureMeta = featuresById.get(feature.properties.feature_id);
     const featureLabel = featureMeta ? featureMeta.feature_name : feature.properties.feature_id;
-    return `<strong>${escapeHtml(feature.properties.title || "Ареал")}</strong><br>Признак: ${escapeHtml(featureLabel)}<br>Источник: ${feature.properties.source === "auto" ? "предварительная генерация" : "ручной GeoJSON"}<br>${escapeHtml(feature.properties.status_note || "")}`;
+    return `<strong>${escapeHtml(feature.properties.title || "Ареал")}</strong><br>Вопрос: ${escapeHtml(featureLabel)}<br>Источник: ${feature.properties.source === "auto" ? "предварительная генерация" : "ручной GeoJSON"}<br>${escapeHtml(feature.properties.status_note || "")}`;
   }
 
   function buildIsoglossPopup(feature) {
@@ -808,7 +846,7 @@
       const featureMeta = featuresById.get(featureId);
       return featureMeta ? featureMeta.feature_name : featureId;
     });
-    return `<strong>Изоглосса</strong><br>Пара признаков: ${escapeHtml(labels.join(" ↔ "))}<br>Источник: ${feature.properties.source === "auto" ? "автоматическая демонстрационная линия" : "ручной GeoJSON"}<br>Стиль: ${escapeHtml(feature.properties.style_code || "line_isogloss_major")}`;
+    return `<strong>Изоглосса</strong><br>Пара вопросов: ${escapeHtml(labels.join(" ↔ "))}<br>Источник: ${feature.properties.source === "auto" ? "автоматическая демонстрационная линия" : "ручной GeoJSON"}<br>Стиль: ${escapeHtml(feature.properties.style_code || "line_isogloss_major")}`;
   }
 
   function getDistrictName(feature) {

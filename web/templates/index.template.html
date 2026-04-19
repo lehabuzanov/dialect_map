@@ -17,7 +17,7 @@
       <aside class="sidebar" aria-label="Панель управления">
         <div class="sidebar__header">
           <h1 class="sidebar__title">Интерактивная карта русских говоров Удмуртии</h1>
-          <p class="sidebar__subtitle">Предфинальная учебная офлайн-версия для локального просмотра и публикации как статической страницы</p>
+          <p class="sidebar__subtitle">Рабочая версия на материалах ЛАРНГ и ДАРЯ</p>
         </div>
 
         <section class="panel demo-banner" id="demo-banner"></section>
@@ -28,15 +28,15 @@
             id="global-search"
             class="search-input"
             type="search"
-            placeholder="Пункт, район, признак, языковая единица"
+            placeholder="Населённый пункт, район, вопрос, ответ"
             autocomplete="off"
           >
           <div id="search-results" class="search-results"></div>
         </section>
 
         <section class="panel">
-          <div class="field-label">Разделы</div>
-          <div id="section-tabs" class="tabs" role="tablist" aria-label="Фильтр по разделу"></div>
+          <div class="field-label">Атласы</div>
+          <div id="section-tabs" class="tabs" role="tablist" aria-label="Фильтр по атласу"></div>
         </section>
 
         <section class="panel">
@@ -49,17 +49,18 @@
 
         <section class="panel">
           <div class="panel__topline">
-            <div class="field-label">Признаки</div>
+            <div class="field-label">Вопросы</div>
             <button id="clear-selection-button" class="link-button" type="button">Сбросить выбор</button>
           </div>
           <div id="feature-count" class="panel-note"></div>
+          <select id="question-select" class="search-input question-select"></select>
           <div id="feature-list" class="feature-list" aria-live="polite"></div>
         </section>
 
         <section class="panel">
           <div class="field-label">Карточка</div>
           <div id="selection-card" class="selection-card">
-            <p class="empty-state">Выберите населённый пункт, район или признак.</p>
+            <p class="empty-state">Выберите населённый пункт, район или вопрос.</p>
           </div>
         </section>
 

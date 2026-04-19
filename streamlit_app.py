@@ -21,7 +21,6 @@ WATCH_DIRS = [
     ROOT / "notes",
     ROOT / "scripts",
     ROOT / "web",
-    ROOT / "доп",
 ]
 
 

@@ -109,6 +109,10 @@ body.modal-open {
   background: #fff;
 }
 
+.question-select {
+  margin-bottom: 10px;
+}
+
 .search-input:focus,
 .tab-button:focus,
 .feature-item:focus,
