@@ -87,10 +87,10 @@ def load_project_data(project_root: Path) -> dict:
             "demo_notice": "",
             "sections": sections,
             "map": {
-                "base_label": "OpenFreeMap с локальными тематическими слоями",
+                "base_label": "OpenFreeMap с тематическими слоями",
                 "min_zoom": 7,
-                "max_zoom": 11,
-                "focus_zoom": 9,
+                "max_zoom": 12,
+                "focus_zoom": 10,
             },
             "boundary_sources": [
                 {
@@ -148,10 +148,6 @@ def normalize_map_rows(rows: Sequence[dict]) -> Tuple[List[dict], List[dict], Li
     observation_counter = 1
 
     for row in rows:
-        question = row.get("question", "")
-        if not question:
-            continue
-
         point_key = (
             row.get("region", ""),
             row.get("district", ""),
@@ -161,7 +157,7 @@ def normalize_map_rows(rows: Sequence[dict]) -> Tuple[List[dict], List[dict], Li
         )
         point_id = point_index.get(point_key)
         if point_id is None:
-            point_id = f"P{point_counter:03d}"
+            point_id = f"P{point_counter:04d}"
             point_counter += 1
             point_index[point_key] = point_id
             points.append(
@@ -173,11 +169,15 @@ def normalize_map_rows(rows: Sequence[dict]) -> Tuple[List[dict], List[dict], Li
                     "latitude": parse_float(row.get("lat")),
                     "longitude": parse_float(row.get("lon")),
                     "landscape": "",
-                    "source": "Рабочая таблица",
-                    "comment": row.get("comment", ""),
+                    "source": "Единая рабочая таблица",
+                    "comment": "",
                     "is_demo": False,
                 }
             )
+
+        question = row.get("question", "")
+        if not question:
+            continue
 
         feature_id = feature_index.get(question)
         if feature_id is None:
@@ -190,7 +190,7 @@ def normalize_map_rows(rows: Sequence[dict]) -> Tuple[List[dict], List[dict], Li
                 {
                     "feature_id": feature_id,
                     "section": atlas,
-                    "subsection": "Вопросы",
+                    "subsection": "Вопросы атласа",
                     "feature_name": question,
                     "description": question,
                     "source_file": "dialect_map_data.csv",
@@ -215,7 +215,7 @@ def normalize_map_rows(rows: Sequence[dict]) -> Tuple[List[dict], List[dict], Li
 
         observations.append(
             {
-                "obs_id": f"O{observation_counter:04d}",
+                "obs_id": f"O{observation_counter:05d}",
                 "point_id": point_id,
                 "feature_id": feature_id,
                 "attested_value": row.get("unit1", ""),
@@ -239,6 +239,7 @@ def normalize_map_rows(rows: Sequence[dict]) -> Tuple[List[dict], List[dict], Li
         feature["linguistic_unit_3"] = answers[2] if len(answers) > 2 else ""
 
     features.sort(key=lambda item: (item["section"], item["feature_name"]))
+    points.sort(key=lambda item: (item["district"], item["settlement"]))
     return points, features, observations
 
 

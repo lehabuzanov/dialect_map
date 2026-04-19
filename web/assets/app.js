@@ -446,11 +446,19 @@
     getVisiblePoints().forEach((point) => {
       const isSelected = point.point_id === state.selectedPointId;
       const hasFeatureFocus = Boolean(state.selectedFeatureId);
-      const markerRadius = isSelected ? 7.8 : hasFeatureFocus ? 6.2 : 4.6;
+      const hasObservationInFocus = state.selectedFeatureIds.some((featureId) => Boolean(findPointObservation(point.point_id, featureId)));
+      const markerRadius = isSelected ? 6.4 : hasObservationInFocus ? 4.2 : 2.2;
       if (isSelected) {
         L.circleMarker([point.latitude, point.longitude], { pane: "points", radius: markerRadius + 4.8, color: "transparent", weight: 0, fillColor: pointFillColor(point), fillOpacity: 0.18, interactive: false }).addTo(layerGroups.points);
       }
-      const marker = L.circleMarker([point.latitude, point.longitude], { pane: "points", radius: markerRadius, color: isSelected ? "#0f1720" : hasFeatureFocus ? "#f8fbff" : "#ffffff", weight: isSelected ? 2.3 : hasFeatureFocus ? 1.35 : 1, fillColor: pointFillColor(point), fillOpacity: 0.95 });
+      const marker = L.circleMarker([point.latitude, point.longitude], {
+        pane: "points",
+        radius: markerRadius,
+        color: isSelected ? "#0f1720" : hasObservationInFocus ? "#f8fbff" : "#dbe3ea",
+        weight: isSelected ? 2.1 : hasObservationInFocus ? 1.1 : 0.4,
+        fillColor: pointFillColor(point),
+        fillOpacity: isSelected ? 0.98 : hasObservationInFocus ? 0.95 : (hasFeatureFocus ? 0.5 : 0.7)
+      });
       marker.bindTooltip(`${point.settlement} (${point.district})`, { sticky: true, className: "point-hover-tooltip", direction: "top", offset: [0, -8] });
       marker.on("click", () => {
         state.selectedPointId = point.point_id;
@@ -462,7 +470,9 @@
         marker.bringToFront();
         L.marker([point.latitude, point.longitude], { pane: "points", interactive: false, keyboard: false, icon: L.divIcon({ className: "point-selection-label-anchor", html: `<div class="point-selection-label">${escapeHtml(point.settlement)}</div>`, iconSize: [0, 0], iconAnchor: [-10, 10] }) }).addTo(layerGroups.points);
       }
-      fitBounds.push(marker.getLatLng());
+      if (!state.selectedFeatureIds.length || hasObservationInFocus || isSelected) {
+        fitBounds.push(marker.getLatLng());
+      }
     });
   }
 
@@ -656,10 +666,7 @@
       if (!matchesPointSearch(point, query)) {
         return false;
       }
-      if (!state.selectedFeatureIds.length) {
-        return true;
-      }
-      return state.selectedFeatureIds.some((featureId) => Boolean(findPointObservation(point.point_id, featureId)));
+      return true;
     });
   }
 
@@ -776,7 +783,7 @@
 
   function pointFillColor(point) {
     if (!state.selectedFeatureIds.length) {
-      return "#1d4f91";
+      return "#3d78a8";
     }
     if (state.selectedFeatureId && findPointObservation(point.point_id, state.selectedFeatureId)) {
       return getFeatureBaseColor(state.selectedFeatureId);
@@ -786,7 +793,7 @@
         return getFeatureBaseColor(featureId);
       }
     }
-    return "#5f6c76";
+    return "#aebbc7";
   }
 
   function featureMatchesQuery(feature, query) {
