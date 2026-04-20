@@ -3,13 +3,18 @@ from __future__ import annotations
 import base64
 import json
 from pathlib import Path
+from typing import Optional, Sequence
 
 from area_generator import generate_provisional_areas, generate_provisional_isoglosses
 from data_loader import load_project_data
 
 
-def render_project_html(project_root: Path) -> str:
-    project_data = load_project_data(project_root)
+def render_project_html(
+    project_root: Path,
+    map_rows: Optional[Sequence[dict]] = None,
+    data_source_meta: Optional[dict] = None,
+) -> str:
+    project_data = load_project_data(project_root, map_rows=map_rows, data_source_meta=data_source_meta)
     provisional_areas = generate_provisional_areas(
         points=project_data["points"],
         observations=project_data["observations"],

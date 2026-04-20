@@ -1,1 +1,4 @@
 streamlit>=1.50,<2
+pandas>=2.2,<3
+gspread>=6,<7
+google-auth>=2.39,<3

@@ -53,13 +53,17 @@ ADMIN_NAME_REPAIRS = {
 }
 
 
-def load_project_data(project_root: Path) -> dict:
+def load_project_data(
+    project_root: Path,
+    map_rows: Optional[Sequence[dict]] = None,
+    data_source_meta: Optional[dict] = None,
+) -> dict:
     csv_root = project_root / "data" / "csv"
     geojson_root = project_root / "data" / "geojson"
     notes_root = project_root / "notes"
 
-    map_rows = load_csv_rows(csv_root / "dialect_map_data.csv", EXPECTED_MAP_FIELDS)
-    points, features, observations = normalize_map_rows(map_rows)
+    resolved_rows = list(map_rows) if map_rows is not None else load_csv_rows(csv_root / "dialect_map_data.csv", EXPECTED_MAP_FIELDS)
+    points, features, observations = normalize_map_rows(resolved_rows)
 
     border_geojson = repair_admin_geojson_names(load_geojson(geojson_root / "udmurtia_border.geojson"))
     districts_geojson = repair_admin_geojson_names(load_geojson(geojson_root / "districts.geojson"))
@@ -86,6 +90,7 @@ def load_project_data(project_root: Path) -> dict:
             "demo_mode": False,
             "demo_notice": "",
             "sections": sections,
+            "data_source": data_source_meta or {},
             "map": {
                 "base_label": "OpenFreeMap с тематическими слоями",
                 "min_zoom": 7,
@@ -317,6 +322,7 @@ def load_geojson_directory(path: Path, geometry_type: str) -> List[dict]:
                 geometry_type=geometry_type,
             )
         )
+
     return feature_list
 
 
