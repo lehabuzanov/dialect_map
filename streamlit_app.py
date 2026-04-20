@@ -244,6 +244,24 @@ def inject_streamlit_theme(theme_key: str) -> None:
     if is_night:
         style = """
         <style>
+        [data-testid="stHeader"] {
+          background:
+            radial-gradient(circle at 16% 50%, rgba(65, 102, 163, 0.22), rgba(65, 102, 163, 0) 18%),
+            linear-gradient(90deg, #081227 0%, #0c1a35 100%);
+          border-bottom: 1px solid rgba(117, 154, 208, 0.18);
+        }
+        [data-testid="stToolbar"] {
+          right: 1rem;
+        }
+        [data-testid="stAppViewContainer"] {
+          background: transparent;
+        }
+        [data-testid="stAppViewContainer"] > .main {
+          background: transparent;
+        }
+        .block-container {
+          padding-top: 1.2rem;
+        }
         .stApp {
           background:
             radial-gradient(circle at 16% 18%, rgba(92, 130, 191, 0.18), rgba(92, 130, 191, 0) 22%),
@@ -329,6 +347,10 @@ def inject_streamlit_theme(theme_key: str) -> None:
         .stApp [data-testid="stDataFrame"], .stApp [data-testid="stForm"] {
           background: rgba(9, 20, 40, 0.36);
           border-radius: 14px;
+        }
+        .stApp [data-testid="stSidebarCollapseButton"] button,
+        .stApp [data-testid="collapsedControl"] {
+          color: #d9e8ff;
         }
         </style>
         """

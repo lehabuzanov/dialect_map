@@ -490,6 +490,10 @@ body.modal-open {
   background: #fff8eb;
 }
 
+.demo-banner:empty {
+  display: none;
+}
+
 .map-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -507,15 +511,20 @@ body.modal-open {
   gap: 14px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--panel-border);
-  background: #fafcff;
+  background:
+    radial-gradient(circle at 18% 50%, rgba(96, 139, 210, 0.18), rgba(96, 139, 210, 0) 16%),
+    linear-gradient(90deg, rgba(11, 30, 58, 0.98) 0%, rgba(9, 23, 45, 0.98) 100%);
+  color: var(--text);
 }
 
 .map-status {
   color: var(--text);
+  font-weight: 600;
 }
 
 .map-source-note {
   text-align: right;
+  color: var(--panel-note-color);
 }
 
 .map-canvas {
