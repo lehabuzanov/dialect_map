@@ -13,8 +13,9 @@ def render_project_html(
     project_root: Path,
     map_rows: Optional[Sequence[dict]] = None,
     data_source_meta: Optional[dict] = None,
+    ui_theme: str = "night",
 ) -> str:
-    project_data = load_project_data(project_root, map_rows=map_rows, data_source_meta=data_source_meta)
+    project_data = load_project_data(project_root, map_rows=map_rows, data_source_meta=data_source_meta, ui_theme=ui_theme)
     provisional_areas = generate_provisional_areas(
         points=project_data["points"],
         observations=project_data["observations"],

@@ -57,6 +57,7 @@ def load_project_data(
     project_root: Path,
     map_rows: Optional[Sequence[dict]] = None,
     data_source_meta: Optional[dict] = None,
+    ui_theme: str = "night",
 ) -> dict:
     csv_root = project_root / "data" / "csv"
     geojson_root = project_root / "data" / "geojson"
@@ -91,6 +92,8 @@ def load_project_data(
             "demo_notice": "",
             "sections": sections,
             "data_source": data_source_meta or {},
+            "ui_theme": ui_theme,
+            "repository_url": "https://github.com/lehabuzanov/dialect_map",
             "map": {
                 "base_label": "OpenFreeMap с тематическими слоями",
                 "min_zoom": 7,

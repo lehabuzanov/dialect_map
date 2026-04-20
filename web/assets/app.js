@@ -50,6 +50,9 @@
 
   const ui = {
     demoBanner: document.getElementById("demo-banner"),
+    themeNightButton: document.getElementById("theme-night-button"),
+    themeClassicButton: document.getElementById("theme-classic-button"),
+    repositoryLink: document.getElementById("repository-link"),
     searchInput: document.getElementById("global-search"),
     searchResults: document.getElementById("search-results"),
     sectionTabs: document.getElementById("section-tabs"),
@@ -66,6 +69,7 @@
   };
 
   const state = {
+    theme: data.meta.ui_theme || "night",
     search: "",
     section: atlasSections[0] || "",
     selectedFeatureIds: [],
@@ -108,19 +112,25 @@
   initialize();
 
   function initialize() {
+    applyTheme(readStoredTheme() || data.meta.ui_theme || "night");
     if (baseMap) {
       baseMap.addTo(map);
     }
     renderDemoBanner();
+    renderThemeSwitch();
     renderSectionTabs();
     renderLayerControls();
     renderInstructionContent();
     renderSourceNote();
+    renderRepositoryLink();
     bindEvents();
     refresh({ fitMap: true });
   }
 
   function bindEvents() {
+    ui.themeNightButton.addEventListener("click", () => updateTheme("night"));
+    ui.themeClassicButton.addEventListener("click", () => updateTheme("classic"));
+
     ui.searchInput.addEventListener("input", (event) => {
       state.search = event.target.value.trim();
       refresh({ fitMap: false });
@@ -160,6 +170,7 @@
 
   function refresh(options) {
     const settings = Object.assign({ fitMap: false }, options || {});
+    renderThemeSwitch();
     renderSectionTabs();
     renderSearchResults();
     renderFeatureList();
@@ -171,6 +182,38 @@
 
   function renderDemoBanner() {
     ui.demoBanner.innerHTML = data.meta.demo_mode ? `<strong>Демо-режим</strong><div class="panel-note">${escapeHtml(data.meta.demo_notice)}</div>` : "";
+  }
+
+  function renderThemeSwitch() {
+    ui.themeNightButton.classList.toggle("is-active", state.theme === "night");
+    ui.themeClassicButton.classList.toggle("is-active", state.theme === "classic");
+  }
+
+  function renderRepositoryLink() {
+    ui.repositoryLink.href = data.meta.repository_url || "#";
+  }
+
+  function updateTheme(theme) {
+    try {
+      window.localStorage.setItem("dialect-map-theme", theme);
+    } catch (error) {
+      // Ignore storage errors in restricted embedded environments.
+    }
+    applyTheme(theme);
+    renderThemeSwitch();
+  }
+
+  function applyTheme(theme) {
+    state.theme = theme || "night";
+    document.documentElement.setAttribute("data-theme", state.theme);
+  }
+
+  function readStoredTheme() {
+    try {
+      return window.localStorage.getItem("dialect-map-theme");
+    } catch (error) {
+      return "";
+    }
   }
 
   function renderSourceNote() {

@@ -15,6 +15,11 @@ ROOT = Path(__file__).resolve().parent
 SCRIPTS_DIR = ROOT / "scripts"
 APP_VERSION = "2026-04-20-google-sheets-editor-v1"
 DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1uAIyIL0ySGi4tOnh3dMss27fmmA6s6LnZqWn2IaFltQ/edit?usp=sharing"
+REPOSITORY_URL = "https://github.com/lehabuzanov/dialect_map"
+THEME_OPTIONS = {
+    "night": "Тёмно-синяя",
+    "classic": "Текущая светлая",
+}
 
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -234,7 +239,111 @@ def add_observation_row(
     }
 
 
-def render_map_tab(rows: list[dict], source_meta: dict) -> None:
+def inject_streamlit_theme(theme_key: str) -> None:
+    is_night = theme_key == "night"
+    if is_night:
+        style = """
+        <style>
+        .stApp {
+          background:
+            radial-gradient(circle at 16% 18%, rgba(92, 130, 191, 0.18), rgba(92, 130, 191, 0) 22%),
+            radial-gradient(circle at 84% 10%, rgba(63, 96, 156, 0.22), rgba(63, 96, 156, 0) 24%),
+            linear-gradient(160deg, rgba(18, 40, 77, 0.98) 0%, rgba(8, 23, 49, 1) 100%);
+          color: #eaf2ff;
+        }
+        .stApp::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          background:
+            radial-gradient(circle at 12% 28%, transparent 0 78px, rgba(141, 177, 232, 0.11) 79px 82px, transparent 83px 100%),
+            radial-gradient(circle at 78% 18%, transparent 0 110px, rgba(118, 162, 225, 0.10) 111px 114px, transparent 115px 100%),
+            radial-gradient(circle at 55% 76%, transparent 0 140px, rgba(118, 162, 225, 0.08) 141px 144px, transparent 145px 100%),
+            linear-gradient(115deg, transparent 0 34%, rgba(132, 171, 229, 0.08) 35%, transparent 36% 64%, rgba(132, 171, 229, 0.06) 65%, transparent 66%);
+          opacity: 0.95;
+        }
+        .stApp h1, .stApp h2, .stApp h3, .stApp label, .stApp [data-testid="stMarkdownContainer"],
+        .stApp [data-testid="stCaptionContainer"], .stApp p, .stApp li, .stApp span {
+          color: #eaf2ff;
+        }
+        [data-testid="stSidebar"] {
+          background:
+            radial-gradient(circle at 18% 14%, rgba(78, 119, 188, 0.34), rgba(78, 119, 188, 0) 20%),
+            linear-gradient(180deg, rgba(13, 30, 58, 0.98) 0%, rgba(9, 22, 44, 0.98) 100%);
+          border-right: 1px solid rgba(137, 170, 219, 0.22);
+        }
+        [data-testid="stSidebar"] > div:first-child {
+          background:
+            radial-gradient(circle at 12% 18%, rgba(98, 137, 200, 0.24), rgba(98, 137, 200, 0) 22%),
+            radial-gradient(circle at 78% 82%, rgba(98, 137, 200, 0.18), rgba(98, 137, 200, 0) 28%),
+            linear-gradient(180deg, rgba(13, 30, 58, 0.98) 0%, rgba(9, 22, 44, 0.98) 100%);
+        }
+        [data-testid="stSidebar"] > div:first-child::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background:
+            radial-gradient(circle at 14% 22%, transparent 0 62px, rgba(146, 183, 235, 0.11) 63px 65px, transparent 66px 100%),
+            radial-gradient(circle at 74% 18%, transparent 0 96px, rgba(146, 183, 235, 0.10) 97px 99px, transparent 100px 100%),
+            radial-gradient(circle at 48% 72%, transparent 0 126px, rgba(146, 183, 235, 0.08) 127px 129px, transparent 130px 100%);
+        }
+        .stApp [data-baseweb="input"] > div,
+        .stApp [data-baseweb="select"] > div,
+        .stApp textarea,
+        .stApp input,
+        .stApp .stTextInput input,
+        .stApp .stTextArea textarea,
+        .stApp .stSelectbox [data-baseweb="select"] > div {
+          background: rgba(15, 34, 66, 0.92);
+          color: #f3f7ff;
+          border-color: rgba(132, 167, 219, 0.34);
+        }
+        .stApp .stButton > button,
+        .stApp .stDownloadButton > button {
+          background: linear-gradient(180deg, #163968 0%, #0f2b52 100%);
+          color: #eef5ff;
+          border: 1px solid rgba(133, 170, 223, 0.34);
+        }
+        .stApp .stButton > button:hover,
+        .stApp .stDownloadButton > button:hover {
+          border-color: rgba(171, 200, 241, 0.6);
+          color: #ffffff;
+        }
+        .stApp .stTabs [data-baseweb="tab-list"] {
+          gap: 0.25rem;
+        }
+        .stApp .stTabs [data-baseweb="tab"] {
+          background: rgba(13, 29, 56, 0.66);
+          border-radius: 0.7rem 0.7rem 0 0;
+          color: #d7e7ff;
+        }
+        .stApp .stTabs [aria-selected="true"] {
+          background: rgba(27, 59, 107, 0.96);
+          color: #ffffff;
+        }
+        .stApp a {
+          color: #9fccff;
+        }
+        .stApp [data-testid="stDataFrame"], .stApp [data-testid="stForm"] {
+          background: rgba(9, 20, 40, 0.36);
+          border-radius: 14px;
+        }
+        </style>
+        """
+    else:
+        style = """
+        <style>
+        .stApp::before {
+          content: none;
+        }
+        </style>
+        """
+    st.markdown(style, unsafe_allow_html=True)
+
+
+def render_map_tab(rows: list[dict], source_meta: dict, theme_key: str) -> None:
     st.markdown(
         f"""
         **Источник данных:** [{source_meta['label']}]({source_meta['url']})  
@@ -250,6 +359,7 @@ def render_map_tab(rows: list[dict], source_meta: dict) -> None:
         ROOT,
         map_rows=rows,
         data_source_meta=source_meta,
+        ui_theme=theme_key,
     )
     components.html(html, height=980, scrolling=True)
 
@@ -453,6 +563,7 @@ def main() -> None:
     st.title("Интерактивная карта русских говоров Удмуртии")
     st.caption("Приложение теперь читает данные из Google Sheets и позволяет редактировать их прямо в интерфейсе.")
     st.caption(f"Версия сборки: {APP_VERSION}")
+    st.caption(f"Репозиторий проекта: [{REPOSITORY_URL}]({REPOSITORY_URL})")
 
     sheet_url = st.sidebar.text_input("Ссылка на Google Sheets", value=st.session_state.get("editor_sheet_url", DEFAULT_SHEET_URL))
     ensure_editor_state(sheet_url)
@@ -464,8 +575,27 @@ def main() -> None:
     source_state = st.session_state.editor_source_state
     source_meta = build_source_meta(sheet_url, rows, source_state)
     credentials_info = get_streamlit_credentials()
+    selected_theme_label = st.session_state.get("ui_theme_label", THEME_OPTIONS["night"])
+    selected_theme_key = next(
+        (key for key, label in THEME_OPTIONS.items() if label == selected_theme_label),
+        "night",
+    )
+    inject_streamlit_theme(selected_theme_key)
 
     with st.sidebar:
+        selected_theme_label = st.radio(
+            "Тема интерфейса",
+            options=list(THEME_OPTIONS.values()),
+            index=list(THEME_OPTIONS.values()).index(selected_theme_label),
+            key="ui_theme_label",
+        )
+        selected_theme_key = next(
+            (key for key, label in THEME_OPTIONS.items() if label == selected_theme_label),
+            "night",
+        )
+        inject_streamlit_theme(selected_theme_key)
+        st.markdown(f"[Открыть репозиторий GitHub]({REPOSITORY_URL})")
+
         st.subheader("Источник данных")
         st.markdown(f"[Открыть Google Sheets]({sheet_url})")
         st.caption(source_meta["message"])
@@ -508,7 +638,7 @@ def main() -> None:
     tabs = st.tabs(["Карта", "Редактирование", "Таблица"])
 
     with tabs[0]:
-        render_map_tab(rows, source_meta)
+        render_map_tab(rows, source_meta, selected_theme_key)
 
     with tabs[1]:
         st.markdown(f"**Текущий источник:** [{source_meta['label']}]({sheet_url})")

@@ -23,6 +23,17 @@
         <section class="panel demo-banner" id="demo-banner"></section>
 
         <section class="panel">
+          <div class="panel__topline">
+            <div class="field-label">Тема панели</div>
+          </div>
+          <div class="theme-switch" id="theme-switch" role="group" aria-label="Переключение темы левой панели">
+            <button id="theme-night-button" class="tab-button" type="button">Тёмно-синяя</button>
+            <button id="theme-classic-button" class="tab-button" type="button">Светлая</button>
+          </div>
+          <p class="panel-note">Карта и слои остаются без изменений, меняется только оформление интерфейса.</p>
+        </section>
+
+        <section class="panel">
           <label class="field-label" for="global-search">Поиск</label>
           <input
             id="global-search"
@@ -67,6 +78,10 @@
         <section class="panel">
           <div class="field-label">Легенда</div>
           <div id="legend" class="legend"></div>
+        </section>
+        <section class="panel panel--compact">
+          <div class="field-label">Код проекта</div>
+          <a id="repository-link" class="repo-link" href="#" target="_blank" rel="noreferrer">Открыть GitHub-репозиторий</a>
         </section>
       </aside>
 
