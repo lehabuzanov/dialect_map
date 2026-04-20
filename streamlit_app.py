@@ -245,10 +245,17 @@ def inject_streamlit_theme(theme_key: str) -> None:
         style = """
         <style>
         [data-testid="stHeader"] {
+          position: relative;
+          top: auto;
+          inset: auto;
+          height: auto;
           background:
             radial-gradient(circle at 16% 50%, rgba(65, 102, 163, 0.22), rgba(65, 102, 163, 0) 18%),
             linear-gradient(90deg, #081227 0%, #0c1a35 100%);
           border-bottom: 1px solid rgba(117, 154, 208, 0.18);
+        }
+        [data-testid="stDecoration"] {
+          display: none;
         }
         [data-testid="stToolbar"] {
           right: 1rem;
@@ -260,7 +267,7 @@ def inject_streamlit_theme(theme_key: str) -> None:
           background: transparent;
         }
         .block-container {
-          padding-top: 1.2rem;
+          padding-top: 0.4rem;
         }
         .stApp {
           background:
