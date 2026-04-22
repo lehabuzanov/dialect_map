@@ -9,7 +9,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_CSV = ROOT / "data" / "csv" / "dialect_map_data.csv"
+DATA_V2_CSV = ROOT / "data" / "csv" / "dialect_map_data_answers_v2.csv"
 SETTLEMENTS_JSON = ROOT / "data" / "wikidata_udmurtia_settlements.json"
+ANSWER_FIELDS = [f"answer_{index}" for index in range(1, 7)]
 
 REGION_NAME = "Удмуртская Республика"
 
@@ -87,7 +89,7 @@ def load_question_catalog(path: Path) -> list[dict]:
         if not question:
             continue
         entry = catalog.setdefault(question, {"question": question, "answers": []})
-        for answer_key in ("unit1", "unit2"):
+        for answer_key in ("unit1", "unit2", *ANSWER_FIELDS):
             answer = (row.get(answer_key) or "").strip()
             if answer and answer not in entry["answers"]:
                 entry["answers"].append(answer)
@@ -175,8 +177,12 @@ def build_observation_rows(settlements: list[dict], catalog: list[dict]) -> list
                     "lat": f"{point['lat']:.6f}",
                     "lon": f"{point['lon']:.6f}",
                     "question": question,
-                    "unit1": primary,
-                    "unit2": secondary,
+                    "answer_1": primary,
+                    "answer_2": secondary,
+                    "answer_3": "",
+                    "answer_4": "",
+                    "answer_5": "",
+                    "answer_6": "",
                     "comment": "Городская фиксация." if point["is_city"] else "Сельская или посёлковая фиксация.",
                 }
             )
@@ -195,8 +201,12 @@ def build_full_table(settlements: list[dict], observations: list[dict]) -> list[
                 "lat": f"{point['lat']:.6f}",
                 "lon": f"{point['lon']:.6f}",
                 "question": "",
-                "unit1": "",
-                "unit2": "",
+                "answer_1": "",
+                "answer_2": "",
+                "answer_3": "",
+                "answer_4": "",
+                "answer_5": "",
+                "answer_6": "",
                 "comment": "",
             }
         )
@@ -210,10 +220,10 @@ def main() -> None:
     observations = build_observation_rows(settlements, catalog)
     rows = build_full_table(settlements, observations)
 
-    with DATA_CSV.open("w", encoding="utf-8", newline="") as handle:
+    with DATA_V2_CSV.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["region", "district", "settlement", "lat", "lon", "question", "unit1", "unit2", "comment"],
+            fieldnames=["region", "district", "settlement", "lat", "lon", "question", *ANSWER_FIELDS, "comment"],
         )
         writer.writeheader()
         writer.writerows(rows)

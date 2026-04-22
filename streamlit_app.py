@@ -13,7 +13,7 @@ from streamlit.errors import StreamlitSecretNotFoundError
 
 ROOT = Path(__file__).resolve().parent
 SCRIPTS_DIR = ROOT / "scripts"
-APP_VERSION = "2026-04-20-google-sheets-editor-v1"
+APP_VERSION = "2026-04-22-answer-variants-v2"
 DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1uAIyIL0ySGi4tOnh3dMss27fmmA6s6LnZqWn2IaFltQ/edit?usp=sharing"
 REPOSITORY_URL = "https://github.com/lehabuzanov/dialect_map"
 THEME_OPTIONS = {
@@ -24,7 +24,7 @@ THEME_OPTIONS = {
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from data_loader import EXPECTED_MAP_FIELDS, load_csv_rows  # noqa: E402
+from data_loader import EXPECTED_ANSWER_FIELDS, EXPECTED_MAP_FIELDS, load_default_map_rows  # noqa: E402
 from page_renderer import render_project_html  # noqa: E402
 from sheet_store import (  # noqa: E402
     dataframe_to_rows,
@@ -63,7 +63,7 @@ def load_remote_rows(sheet_url: str) -> list[dict]:
 
 @st.cache_data(show_spinner=False)
 def load_local_rows() -> list[dict]:
-    return load_csv_rows(ROOT / "data" / "csv" / "dialect_map_data.csv", EXPECTED_MAP_FIELDS)
+    return load_default_map_rows(ROOT / "data" / "csv")
 
 
 def load_source_rows(sheet_url: str) -> tuple[list[dict], dict]:
@@ -202,17 +202,18 @@ def delete_observation(rows: list[dict], row_index: int) -> list[dict]:
 
 
 def add_blank_settlement_row(region: str, district: str, settlement: str, lat: str, lon: str) -> dict:
-    return {
+    row = {
         "region": region,
         "district": district,
         "settlement": settlement,
         "lat": lat,
         "lon": lon,
         "question": "",
-        "unit1": "",
-        "unit2": "",
         "comment": "",
     }
+    for field in EXPECTED_ANSWER_FIELDS:
+        row[field] = ""
+    return row
 
 
 def add_observation_row(
@@ -222,21 +223,36 @@ def add_observation_row(
     lat: str,
     lon: str,
     question: str,
-    unit1: str,
-    unit2: str,
+    answers: list[str],
     comment: str,
 ) -> dict:
-    return {
+    row = {
         "region": region,
         "district": district,
         "settlement": settlement,
         "lat": lat,
         "lon": lon,
         "question": question,
-        "unit1": unit1,
-        "unit2": unit2,
         "comment": comment,
     }
+    for field in EXPECTED_ANSWER_FIELDS:
+        row[field] = ""
+    for field, value in zip(EXPECTED_ANSWER_FIELDS, answers):
+        row[field] = value
+    return row
+
+
+def read_answer_values(form_values: dict) -> list[str]:
+    answers: list[str] = []
+    seen: set[str] = set()
+    for field in EXPECTED_ANSWER_FIELDS:
+        cleaned = str(form_values.get(field, "") or "").strip()
+        normalized = cleaned.lower()
+        if not cleaned or normalized in seen:
+            continue
+        answers.append(cleaned)
+        seen.add(normalized)
+    return answers
 
 
 def inject_streamlit_theme(theme_key: str) -> None:
@@ -475,8 +491,10 @@ def render_question_editor(frame: pd.DataFrame, rows: list[dict]) -> None:
     with st.form("add_question_form"):
         st.markdown("**Добавить новый вопрос**")
         question = st.text_input("Текст вопроса", key="new_question_text", placeholder="Например: ЛАРНГ: Как называется ...?")
-        unit1 = st.text_input("Основной ответ", key="new_question_unit1")
-        unit2 = st.text_input("Дополнительный ответ", key="new_question_unit2")
+        answer_values = {
+            field: st.text_input(f"Вариант ответа {index}", key=f"new_question_{field}")
+            for index, field in enumerate(EXPECTED_ANSWER_FIELDS, start=1)
+        }
         comment = st.text_input("Комментарий", key="new_question_comment")
         submitted = st.form_submit_button("Добавить вопрос")
         if submitted and selected_settlement is not None:
@@ -490,8 +508,7 @@ def render_question_editor(frame: pd.DataFrame, rows: list[dict]) -> None:
                     lat=selected_settlement["lat"],
                     lon=selected_settlement["lon"],
                     question=question,
-                    unit1=unit1,
-                    unit2=unit2,
+                    answers=read_answer_values(answer_values),
                     comment=comment,
                 )
                 apply_rows_update(rows + [new_row], "Новый вопрос добавлен с первым наблюдением.")
@@ -506,7 +523,7 @@ def render_observation_editor(frame: pd.DataFrame, rows: list[dict]) -> None:
     search_query = st.text_input("Поиск наблюдения", key="observation_search", placeholder="Пункт, вопрос, ответ, комментарий")
     filtered = filter_frame_by_text(
         observation_frame,
-        ["region", "district", "settlement", "question", "unit1", "unit2", "comment"],
+        ["region", "district", "settlement", "question", *EXPECTED_ANSWER_FIELDS, "comment"],
         search_query,
     )
 
@@ -524,12 +541,23 @@ def render_observation_editor(frame: pd.DataFrame, rows: list[dict]) -> None:
             lat = st.text_input("Широта", value=selected_row["lat"])
             lon = st.text_input("Долгота", value=selected_row["lon"])
             question = st.text_input("Вопрос", value=selected_row["question"])
-            unit1 = st.text_input("Основной ответ", value=selected_row["unit1"])
-            unit2 = st.text_input("Дополнительный ответ", value=selected_row["unit2"])
+            answer_values = {
+                field: st.text_input(f"Вариант ответа {index}", value=selected_row.get(field, ""))
+                for index, field in enumerate(EXPECTED_ANSWER_FIELDS, start=1)
+            }
             comment = st.text_input("Комментарий", value=selected_row["comment"])
             submitted = st.form_submit_button("Сохранить наблюдение")
             if submitted:
-                updated_row = add_observation_row(region, district, settlement, lat, lon, question, unit1, unit2, comment)
+                updated_row = add_observation_row(
+                    region,
+                    district,
+                    settlement,
+                    lat,
+                    lon,
+                    question,
+                    read_answer_values(answer_values),
+                    comment,
+                )
                 apply_rows_update(update_observation(rows, int(selected_row["row_index"]), updated_row), "Наблюдение обновлено.")
 
         if st.button("Удалить выбранное наблюдение", key="delete_selected_observation"):
@@ -547,8 +575,10 @@ def render_observation_editor(frame: pd.DataFrame, rows: list[dict]) -> None:
     with st.form("add_observation_form"):
         st.markdown("**Добавить новое наблюдение**")
         question = st.text_input("Вопрос", key="new_observation_question")
-        unit1 = st.text_input("Основной ответ", key="new_observation_unit1")
-        unit2 = st.text_input("Дополнительный ответ", key="new_observation_unit2")
+        answer_values = {
+            field: st.text_input(f"Вариант ответа {index}", key=f"new_observation_{field}")
+            for index, field in enumerate(EXPECTED_ANSWER_FIELDS, start=1)
+        }
         comment = st.text_input("Комментарий", key="new_observation_comment")
         submitted = st.form_submit_button("Добавить наблюдение")
         if submitted and selected_settlement is not None:
@@ -562,8 +592,7 @@ def render_observation_editor(frame: pd.DataFrame, rows: list[dict]) -> None:
                     lat=selected_settlement["lat"],
                     lon=selected_settlement["lon"],
                     question=question,
-                    unit1=unit1,
-                    unit2=unit2,
+                    answers=read_answer_values(answer_values),
                     comment=comment,
                 )
                 apply_rows_update(rows + [new_row], "Новое наблюдение добавлено.")

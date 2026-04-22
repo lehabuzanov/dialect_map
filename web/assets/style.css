@@ -413,6 +413,9 @@ body.modal-open {
 }
 
 .value-list__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 9px;
   border: 1px solid #e5eaef;
   border-radius: 8px;
@@ -438,6 +441,15 @@ body.modal-open {
   align-items: center;
   gap: 10px;
   font-size: 0.92rem;
+}
+
+.legend-marker-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  min-height: 14px;
+  flex: 0 0 auto;
 }
 
 .legend-line {
@@ -670,6 +682,17 @@ body.modal-open {
 .point-selection-label-anchor {
   background: transparent;
   border: 0;
+}
+
+.variant-marker-anchor {
+  background: transparent;
+  border: 0;
+}
+
+.variant-marker {
+  border-radius: 999px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(15, 23, 32, 0.16);
 }
 
 .district-tooltip {

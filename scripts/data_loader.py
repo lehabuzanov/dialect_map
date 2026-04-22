@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
+MAX_ANSWER_COLUMNS = 6
+LEGACY_ANSWER_FIELDS = ["unit1", "unit2"]
+EXPECTED_ANSWER_FIELDS = [f"answer_{index}" for index in range(1, MAX_ANSWER_COLUMNS + 1)]
 EXPECTED_MAP_FIELDS = [
     "region",
     "district",
@@ -14,9 +17,12 @@ EXPECTED_MAP_FIELDS = [
     "lat",
     "lon",
     "question",
-    "unit1",
-    "unit2",
+    *EXPECTED_ANSWER_FIELDS,
     "comment",
+]
+DEFAULT_MAP_DATA_FILES = [
+    "dialect_map_data_answers_v2.csv",
+    "dialect_map_data.csv",
 ]
 
 ADMIN_NAME_REPAIRS = {
@@ -63,7 +69,7 @@ def load_project_data(
     geojson_root = project_root / "data" / "geojson"
     notes_root = project_root / "notes"
 
-    resolved_rows = list(map_rows) if map_rows is not None else load_csv_rows(csv_root / "dialect_map_data.csv", EXPECTED_MAP_FIELDS)
+    resolved_rows = list(map_rows) if map_rows is not None else load_default_map_rows(csv_root)
     points, features, observations = normalize_map_rows(resolved_rows)
 
     border_geojson = repair_admin_geojson_names(load_geojson(geojson_root / "udmurtia_border.geojson"))
@@ -138,10 +144,55 @@ def load_csv_rows(path: Path, expected_fields: Iterable[str]) -> List[dict]:
     reader = csv.DictReader(text.splitlines())
     rows: List[dict] = []
     for row in reader:
-        normalized = {field: (row.get(field, "") or "").strip() for field in expected_fields}
+        normalized = normalize_source_row(row, expected_fields)
         if any(normalized.values()):
             rows.append(normalized)
     return rows
+
+
+def load_default_map_rows(csv_root: Path) -> List[dict]:
+    for filename in DEFAULT_MAP_DATA_FILES:
+        candidate = csv_root / filename
+        if candidate.exists():
+            return load_csv_rows(candidate, EXPECTED_MAP_FIELDS)
+    return []
+
+
+def normalize_source_row(row: dict, expected_fields: Iterable[str]) -> dict:
+    normalized = {field: "" for field in expected_fields}
+    for field in ("region", "district", "settlement", "lat", "lon", "question", "comment"):
+        if field in normalized:
+            normalized[field] = (row.get(field, "") or "").strip()
+
+    answers = extract_row_answers(row)
+    for index, answer in enumerate(answers[: len(EXPECTED_ANSWER_FIELDS)], start=1):
+        field_name = f"answer_{index}"
+        if field_name in normalized:
+            normalized[field_name] = answer
+    return normalized
+
+
+def extract_row_answers(row: dict) -> List[str]:
+    answer_fields = sorted(
+        (
+            field_name
+            for field_name in row.keys()
+            if re.fullmatch(r"answer_\d+", str(field_name or ""))
+        ),
+        key=lambda field_name: int(str(field_name).split("_", 1)[1]),
+    )
+    answer_fields.extend(field_name for field_name in LEGACY_ANSWER_FIELDS if field_name not in answer_fields)
+
+    answers: List[str] = []
+    seen: set[str] = set()
+    for field_name in answer_fields:
+        cleaned = (row.get(field_name, "") or "").strip()
+        normalized = cleaned.lower()
+        if not cleaned or normalized in seen:
+            continue
+        answers.append(cleaned)
+        seen.add(normalized)
+    return answers
 
 
 def normalize_map_rows(rows: Sequence[dict]) -> Tuple[List[dict], List[dict], List[dict]]:
@@ -216,8 +267,8 @@ def normalize_map_rows(rows: Sequence[dict]) -> Tuple[List[dict], List[dict], Li
                 }
             )
 
-        for answer in [row.get("unit1", ""), row.get("unit2", "")]:
-            cleaned = answer.strip()
+        answers = extract_row_answers(row)
+        for cleaned in answers:
             if cleaned and cleaned not in answers_by_question[question]:
                 answers_by_question[question].append(cleaned)
 
@@ -226,8 +277,12 @@ def normalize_map_rows(rows: Sequence[dict]) -> Tuple[List[dict], List[dict], Li
                 "obs_id": f"O{observation_counter:05d}",
                 "point_id": point_id,
                 "feature_id": feature_id,
-                "attested_value": row.get("unit1", ""),
-                "secondary_value": row.get("unit2", ""),
+                "attested_value": answers[0] if answers else "",
+                "secondary_value": answers[1] if len(answers) > 1 else "",
+                "tertiary_value": answers[2] if len(answers) > 2 else "",
+                "answers": answers,
+                "answer_count": len(answers),
+                "answer_signature": " | ".join(answers),
                 "answer_type": "рабочая выборка",
                 "source_year": "",
                 "collector": derive_atlas_name(question),
@@ -348,6 +403,7 @@ def normalize_geojson_payload(payload: dict, source_name: str, geometry_type: st
             feature_id = source_name
         properties.setdefault("feature_id", feature_id)
         properties.setdefault("attested_value", attested_value)
+        properties.setdefault("scope", "value" if attested_value else "feature")
         properties.setdefault("source", "manual")
         properties.setdefault("geometry_type", geometry_type)
         properties.setdefault("style_code", "")

@@ -12,7 +12,7 @@ def generate_provisional_areas(
     observations: Sequence[dict],
     manual_area_keys: Iterable[str],
 ) -> List[dict]:
-    """Build soft provisional areas for full features only."""
+    """Build provisional areas for full questions and their answer variants."""
 
     point_lookup = {
         point["point_id"]: point
@@ -21,6 +21,7 @@ def generate_provisional_areas(
     }
     manual_area_keys = set(manual_area_keys)
     grouped_by_feature: Dict[str, List[Coordinate]] = defaultdict(list)
+    grouped_by_answer: Dict[Tuple[str, str], List[Coordinate]] = defaultdict(list)
 
     for observation in observations:
         point = point_lookup.get(observation.get("point_id"))
@@ -29,7 +30,20 @@ def generate_provisional_areas(
         feature_id = observation.get("feature_id") or ""
         if not feature_id:
             continue
-        grouped_by_feature[feature_id].append((point["longitude"], point["latitude"]))
+        coordinate = (point["longitude"], point["latitude"])
+        grouped_by_feature[feature_id].append(coordinate)
+
+        raw_answers = observation.get("answers") or []
+        answers = [str(answer).strip() for answer in raw_answers if str(answer).strip()]
+        if not answers:
+            fallback_answers = [
+                str(observation.get("attested_value") or "").strip(),
+                str(observation.get("secondary_value") or "").strip(),
+                str(observation.get("tertiary_value") or "").strip(),
+            ]
+            answers = [answer for answer in fallback_answers if answer]
+        for answer in dict.fromkeys(answers):
+            grouped_by_answer[(feature_id, answer)].append(coordinate)
 
     provisional_features: List[dict] = []
     for feature_id, coordinates in sorted(grouped_by_feature.items()):
@@ -45,6 +59,22 @@ def generate_provisional_areas(
                 geometry=geometry,
                 attested_value="",
                 scope="feature",
+            )
+        )
+
+    for (feature_id, attested_value), coordinates in sorted(grouped_by_answer.items()):
+        feature_key = build_scope_key(feature_id, attested_value)
+        if feature_key in manual_area_keys:
+            continue
+        geometry = coordinates_to_geometry(coordinates)
+        if geometry is None:
+            continue
+        provisional_features.append(
+            build_geojson_feature(
+                feature_id=feature_id,
+                geometry=geometry,
+                attested_value=attested_value,
+                scope="value",
             )
         )
 

@@ -47,6 +47,8 @@
   const sortedFeatures = data.features.slice().sort((left, right) => collator.compare(left.alphabet_key || left.feature_name, right.alphabet_key || right.feature_name));
   const atlasSections = (data.meta.sections || []).slice();
   const questionColorPalette = ["#2c5aa0", "#c76a0e", "#147a7e", "#6a49a5", "#8f2d2d", "#648b23"];
+  const answerColorPalette = ["#2c5aa0", "#c76a0e", "#147a7e", "#8f2d2d", "#6a49a5", "#648b23", "#a83f92", "#2d6a4f", "#b85c12", "#4058a7", "#c25b7c", "#7b3f32"];
+  const featureAnswerCatalog = buildFeatureAnswerCatalog();
 
   const ui = {
     demoBanner: document.getElementById("demo-banner"),
@@ -359,7 +361,7 @@
 
     const observationRows = allObservations.length ? allObservations.map((observation) => {
       const feature = featuresById.get(observation.feature_id);
-      const variants = [observation.attested_value, observation.secondary_value].filter(Boolean).join(" / ");
+      const variants = getObservationAnswers(observation).join(" / ");
       return `<li><strong>${escapeHtml(feature ? feature.feature_name : observation.feature_id)}</strong>: ${escapeHtml(variants || "ответ не указан")}<div class="feature-meta">${escapeHtml([observation.source_year, observation.collector].filter(Boolean).join(" · "))}</div></li>`;
     }).join("") : "<li>Для этого пункта наблюдения пока не добавлены.</li>";
 
@@ -376,6 +378,7 @@
     const observations = observationsByFeature.get(feature.feature_id) || [];
     const manualAreaCount = manualAreas.filter((item) => item.properties.feature_id === feature.feature_id).length;
     const provisionalAreaCount = provisionalAreas.filter((item) => item.properties.feature_id === feature.feature_id).length;
+    const answerVariants = getFeatureAnswerVariants(feature.feature_id);
     const relatedFeatureNames = state.selectedFeatureIds.filter((featureId) => featureId !== feature.feature_id).map((featureId) => {
       const item = featuresById.get(featureId);
       return item ? item.feature_name : featureId;
@@ -383,8 +386,11 @@
     const mapCoverageNote = buildFeatureCoverageNote(observations.length, manualAreaCount, provisionalAreaCount, relatedFeatureNames.length ? getVisibleIsoglosses().length : 0);
     const settlementButtons = Array.from(new Set(observations.map((item) => item.point_id))).map((pointId) => pointsById.get(pointId)).filter(Boolean).sort((left, right) => collator.compare(left.settlement, right.settlement)).map((point) => `<button type="button" class="chip-button" data-action="select-point" data-point-id="${escapeAttribute(point.point_id)}">${escapeHtml(point.settlement)}</button>`).join("");
     const examples = feature.example_list || [];
-    const multiFeatureNote = relatedFeatureNames.length ? `Одновременно выбраны и другие вопросы: ${relatedFeatureNames.join(", ")}.` : "";
-    return `<h3 class="selection-card__title">${escapeHtml(feature.feature_name)}</h3><div class="selection-card__subtitle">${escapeHtml(feature.section)} · ${escapeHtml(feature.subsection)}</div>${multiFeatureNote ? `<div class="panel-note">${escapeHtml(multiFeatureNote)}</div>` : ""}<div class="selection-card__table"><div class="selection-card__label">Вопрос</div><div class="selection-card__value">${escapeHtml(feature.question_text || "—")}</div><div class="selection-card__label">Варианты ответа</div><div class="selection-card__value">${escapeHtml(buildLinguisticUnits(feature).join(", ") || "—")}</div><div class="selection-card__label">Наблюдений</div><div class="selection-card__value">${observations.length}</div><div class="selection-card__label">Ручной ареал</div><div class="selection-card__value">${manualAreaCount ? `да (${manualAreaCount})` : "нет"}</div><div class="selection-card__label">Предварительный ареал</div><div class="selection-card__value">${provisionalAreaCount ? `да (${provisionalAreaCount})` : "нет"}</div><div class="selection-card__label">Изоглоссы</div><div class="selection-card__value">${state.selectedFeatureIds.length === 2 ? (getVisibleIsoglosses().length ? `да (${getVisibleIsoglosses().length})` : "нет") : "только для пары вопросов"}</div></div>${mapCoverageNote ? `<div class="panel-note">${escapeHtml(mapCoverageNote)}</div>` : ""}<div class="selection-card__section"><div class="field-label">Примеры ответов</div>${examples.length ? `<ul class="selection-card__list">${examples.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : '<div class="panel-note">Примеры пока не добавлены.</div>'}</div><div class="selection-card__section"><div class="field-label">Населённые пункты</div><div class="chip-cloud">${settlementButtons || '<span class="panel-note">Пункты пока не заполнены.</span>'}</div></div>`;
+    const multiFeatureNote = relatedFeatureNames.length ? `Сейчас выбран режим сравнения. Активный вопрос раскрашивается по ответам, второй вопрос показывается контуром и изоглоссами: ${relatedFeatureNames.join(", ")}.` : "";
+    const answerRows = answerVariants.length
+      ? `<div class="value-list">${answerVariants.map((item) => `<div class="value-list__item"><span class="legend-swatch" style="background:${item.color}"></span> ${escapeHtml(item.value)} <span class="feature-meta">(${item.count})</span></div>`).join("")}</div>`
+      : '<div class="panel-note">Варианты ответа пока не собраны.</div>';
+    return `<h3 class="selection-card__title">${escapeHtml(feature.feature_name)}</h3><div class="selection-card__subtitle">${escapeHtml(feature.section)} · ${escapeHtml(feature.subsection)}</div>${multiFeatureNote ? `<div class="panel-note">${escapeHtml(multiFeatureNote)}</div>` : ""}<div class="selection-card__table"><div class="selection-card__label">Вопрос</div><div class="selection-card__value">${escapeHtml(feature.question_text || "—")}</div><div class="selection-card__label">Варианты ответа</div><div class="selection-card__value">${escapeHtml(buildLinguisticUnits(feature).join(", ") || "—")}</div><div class="selection-card__label">Наблюдений</div><div class="selection-card__value">${observations.length}</div><div class="selection-card__label">Ручной ареал</div><div class="selection-card__value">${manualAreaCount ? `да (${manualAreaCount})` : "нет"}</div><div class="selection-card__label">Предварительный ареал</div><div class="selection-card__value">${provisionalAreaCount ? `да (${provisionalAreaCount})` : "нет"}</div><div class="selection-card__label">Изоглоссы</div><div class="selection-card__value">${state.selectedFeatureIds.length === 2 ? (getVisibleIsoglosses().length ? `да (${getVisibleIsoglosses().length})` : "нет") : "только для пары вопросов"}</div></div>${mapCoverageNote ? `<div class="panel-note">${escapeHtml(mapCoverageNote)}</div>` : ""}<div class="selection-card__section"><div class="field-label">Распределение ответов</div>${answerRows}</div><div class="selection-card__section"><div class="field-label">Примеры ответов</div>${examples.length ? `<ul class="selection-card__list">${examples.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : '<div class="panel-note">Примеры пока не добавлены.</div>'}</div><div class="selection-card__section"><div class="field-label">Населённые пункты</div><div class="chip-cloud">${settlementButtons || '<span class="panel-note">Пункты пока не заполнены.</span>'}</div></div>`;
   }
 
   function bindDynamicButtons() {
@@ -407,13 +413,33 @@
   }
 
   function renderLegend() {
-    const rows = ['<div class="legend-row"><span class="legend-point"></span><span>Населённый пункт</span></div>', '<div class="legend-row"><span class="legend-point is-selected"></span><span>Выбранный пункт</span></div>', '<div class="legend-row"><span class="legend-line"></span><span>Граница района</span></div>', '<div class="legend-row"><span class="legend-area"></span><span>Ручной ареал</span></div>', '<div class="legend-row"><span class="legend-area is-provisional"></span><span>Предварительный ареал</span></div>', '<div class="legend-row"><span class="legend-line is-isogloss"></span><span>Изоглосса между двумя вопросами</span></div>'];
-    if (state.selectedFeatureIds.length) {
-      rows.push('<div class="field-label">Активные вопросы</div>');
-      state.selectedFeatureIds.forEach((featureId) => {
-        const feature = featuresById.get(featureId);
-        rows.push(`<div class="legend-row"><span class="legend-swatch" style="background:${getFeatureBaseColor(featureId)}"></span><span>${escapeHtml(feature ? feature.feature_name : featureId)}${featureId === state.selectedFeatureId ? " (активный)" : ""}</span></div>`);
-      });
+    const rows = [
+      '<div class="legend-row"><span class="legend-point"></span><span>Населённый пункт</span></div>',
+      '<div class="legend-row"><span class="legend-point is-selected"></span><span>Выбранный пункт</span></div>',
+      '<div class="legend-row"><span class="legend-line"></span><span>Граница района</span></div>',
+      '<div class="legend-row"><span class="legend-area"></span><span>Ручной ареал</span></div>',
+      '<div class="legend-row"><span class="legend-area is-provisional"></span><span>Предварительный ареал</span></div>',
+      '<div class="legend-row"><span class="legend-line is-isogloss"></span><span>Изоглосса между двумя вопросами</span></div>'
+    ];
+    if (state.selectedFeatureId) {
+      const activeFeature = featuresById.get(state.selectedFeatureId);
+      rows.push('<div class="field-label">Активный вопрос</div>');
+      rows.push(`<div class="legend-row"><span class="legend-swatch" style="background:${getFeatureBaseColor(state.selectedFeatureId)}"></span><span>${escapeHtml(activeFeature ? activeFeature.feature_name : state.selectedFeatureId)}</span></div>`);
+      const answerVariants = getFeatureAnswerVariants(state.selectedFeatureId);
+      if (answerVariants.length) {
+        rows.push('<div class="field-label">Ответы на активный вопрос</div>');
+        answerVariants.forEach((item) => {
+          rows.push(`<div class="legend-row"><span class="legend-swatch" style="background:${item.color}"></span><span>${escapeHtml(item.value)} (${item.count})</span></div>`);
+        });
+        rows.push(`<div class="legend-row"><span class="legend-marker-inline">${buildLegendMarkerHtml({ size: 12, colors: answerVariants.slice(0, 3).map((item) => item.color), borderColor: "#f8fbff", borderWidth: 1.1, outerRingColor: "" })}</span><span>Многоцветный маркер = в пункте зафиксировано несколько ответов</span></div>`);
+      }
+    }
+    const secondaryFeatureId = getSecondaryFeatureId();
+    if (secondaryFeatureId) {
+      const secondaryFeature = featuresById.get(secondaryFeatureId);
+      rows.push('<div class="field-label">Сравнение с другим вопросом</div>');
+      rows.push(`<div class="legend-row"><span class="legend-marker-inline">${buildLegendMarkerHtml({ size: 12, colors: ["#dfe6ec"], borderColor: getFeatureBaseColor(secondaryFeatureId), borderWidth: 2.2, outerRingColor: "" })}</span><span>${escapeHtml(secondaryFeature ? secondaryFeature.feature_name : secondaryFeatureId)} показывается контуром</span></div>`);
+      rows.push(`<div class="panel-note">При сравнении раскраска ответов остаётся у активного вопроса, второй вопрос не перегружает карту лишними цветами.</div>`);
     }
     ui.legend.innerHTML = rows.join("");
   }
@@ -471,8 +497,18 @@
   function renderAreaLayers(fitBounds) {
     getVisibleAreas().forEach((feature) => {
       const isProvisional = feature.properties.source === "auto";
-      const fillColor = getFeatureBaseColor(feature.properties.feature_id);
-      const layer = L.geoJSON(feature, { pane: "areas", style: { color: fillColor, weight: isProvisional ? 2.1 : 1.9, dashArray: isProvisional ? "7 4" : null, fillColor, fillOpacity: isProvisional ? 0.14 : 0.24 } }).bindPopup(buildAreaPopup(feature)).addTo(layerGroups.areas);
+      const isSecondary = feature.properties.compare_role === "secondary";
+      const areaColor = getAreaColor(feature);
+      const layer = L.geoJSON(feature, {
+        pane: "areas",
+        style: {
+          color: areaColor,
+          weight: isSecondary ? 2.2 : (isProvisional ? 2.1 : 1.9),
+          dashArray: isSecondary ? "10 6" : (isProvisional ? "7 4" : null),
+          fillColor: areaColor,
+          fillOpacity: isSecondary ? 0.04 : (isProvisional ? 0.16 : 0.24),
+        }
+      }).bindPopup(buildAreaPopup(feature)).addTo(layerGroups.areas);
       collectLayerBounds(fitBounds, layer);
     });
   }
@@ -488,21 +524,17 @@
   function renderPointLayers(fitBounds) {
     getVisiblePoints().forEach((point) => {
       const isSelected = point.point_id === state.selectedPointId;
-      const hasFeatureFocus = Boolean(state.selectedFeatureId);
-      const hasObservationInFocus = state.selectedFeatureIds.some((featureId) => Boolean(findPointObservation(point.point_id, featureId)));
-      const markerRadius = isSelected ? 6.4 : hasObservationInFocus ? 4.2 : 2.2;
-      if (isSelected) {
-        L.circleMarker([point.latitude, point.longitude], { pane: "points", radius: markerRadius + 4.8, color: "transparent", weight: 0, fillColor: pointFillColor(point), fillOpacity: 0.18, interactive: false }).addTo(layerGroups.points);
-      }
-      const marker = L.circleMarker([point.latitude, point.longitude], {
+      const markerConfig = getPointMarkerConfig(point, isSelected);
+      const marker = L.marker([point.latitude, point.longitude], {
         pane: "points",
-        radius: markerRadius,
-        color: isSelected ? "#0f1720" : hasObservationInFocus ? "#f8fbff" : "#dbe3ea",
-        weight: isSelected ? 2.1 : hasObservationInFocus ? 1.1 : 0.4,
-        fillColor: pointFillColor(point),
-        fillOpacity: isSelected ? 0.98 : hasObservationInFocus ? 0.95 : (hasFeatureFocus ? 0.5 : 0.7)
+        icon: L.divIcon({
+          className: "variant-marker-anchor",
+          html: buildPointMarkerHtml(markerConfig),
+          iconSize: [markerConfig.size, markerConfig.size],
+          iconAnchor: [Math.round(markerConfig.size / 2), Math.round(markerConfig.size / 2)],
+        })
       });
-      marker.bindTooltip(`${point.settlement} (${point.district})`, { sticky: true, className: "point-hover-tooltip", direction: "top", offset: [0, -8] });
+      marker.bindTooltip(buildPointTooltip(point), { sticky: true, className: "point-hover-tooltip", direction: "top", offset: [0, -10] });
       marker.on("click", () => {
         state.selectedPointId = point.point_id;
         state.selectedDistrict = point.district;
@@ -513,7 +545,7 @@
         marker.bringToFront();
         L.marker([point.latitude, point.longitude], { pane: "points", interactive: false, keyboard: false, icon: L.divIcon({ className: "point-selection-label-anchor", html: `<div class="point-selection-label">${escapeHtml(point.settlement)}</div>`, iconSize: [0, 0], iconAnchor: [-10, 10] }) }).addTo(layerGroups.points);
       }
-      if (!state.selectedFeatureIds.length || hasObservationInFocus || isSelected) {
+      if (!state.selectedFeatureIds.length || markerConfig.isInFocus || isSelected) {
         fitBounds.push(marker.getLatLng());
       }
     });
@@ -714,7 +746,28 @@
   }
 
   function getVisibleAreas() {
-    return allAreas.filter((feature) => state.selectedFeatureIds.includes(feature.properties.feature_id) && getAreaScope(feature) === "feature");
+    if (!state.selectedFeatureId) {
+      return [];
+    }
+
+    const activeValueAreas = allAreas.filter((feature) => feature.properties.feature_id === state.selectedFeatureId && getAreaScope(feature) === "value");
+    const activeFeatureAreas = allAreas.filter((feature) => feature.properties.feature_id === state.selectedFeatureId && getAreaScope(feature) === "feature");
+    const visibleAreas = (activeValueAreas.length ? activeValueAreas : activeFeatureAreas).map((feature) => feature);
+
+    const secondaryFeatureId = getSecondaryFeatureId();
+    if (!secondaryFeatureId) {
+      return visibleAreas;
+    }
+
+    const secondaryFeatureAreas = allAreas.filter((feature) => feature.properties.feature_id === secondaryFeatureId && getAreaScope(feature) === "feature");
+    const secondaryFallbackAreas = allAreas.filter((feature) => feature.properties.feature_id === secondaryFeatureId && getAreaScope(feature) === "value");
+    const comparisonAreas = (secondaryFeatureAreas.length ? secondaryFeatureAreas : secondaryFallbackAreas).map((feature) => ({
+      type: feature.type,
+      geometry: feature.geometry,
+      properties: Object.assign({}, feature.properties, { compare_role: "secondary" }),
+    }));
+
+    return visibleAreas.concat(comparisonAreas);
   }
 
   function getVisibleIsoglosses() {
@@ -768,6 +821,75 @@
       buckets.set(groupKey, current);
     });
     return buckets;
+  }
+
+  function getObservationAnswers(observation) {
+    const rawAnswers = Array.isArray(observation.answers) ? observation.answers : [observation.attested_value, observation.secondary_value, observation.tertiary_value];
+    const answers = [];
+    const seen = new Set();
+    rawAnswers.forEach((value) => {
+      const cleaned = String(value || "").trim();
+      const normalized = normalizeText(cleaned);
+      if (!cleaned || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      answers.push(cleaned);
+    });
+    return answers;
+  }
+
+  function buildFeatureAnswerCatalog() {
+    const catalog = new Map();
+    data.features.forEach((feature) => {
+      const counts = new Map();
+      (observationsByFeature.get(feature.feature_id) || []).forEach((observation) => {
+        getObservationAnswers(observation).forEach((answer) => {
+          counts.set(answer, (counts.get(answer) || 0) + 1);
+        });
+      });
+      const variants = Array.from(counts.entries())
+        .map(([value, count], index) => ({
+          value,
+          count,
+          color: answerColorPalette[index % answerColorPalette.length],
+          normalized: normalizeText(value),
+        }))
+        .sort((left, right) => right.count - left.count || collator.compare(left.value, right.value))
+        .map((item, index) => Object.assign({}, item, { color: answerColorPalette[index % answerColorPalette.length] }));
+      catalog.set(feature.feature_id, variants);
+    });
+    return catalog;
+  }
+
+  function getFeatureAnswerVariants(featureId) {
+    return featureAnswerCatalog.get(featureId) || [];
+  }
+
+  function getAnswerColor(featureId, answerValue) {
+    const normalizedAnswer = normalizeText(answerValue);
+    const variants = getFeatureAnswerVariants(featureId);
+    const matched = variants.find((item) => item.normalized === normalizedAnswer);
+    if (matched) {
+      return matched.color;
+    }
+    return answerColorPalette[Math.abs(hashString(`${featureId}::${normalizedAnswer}`)) % answerColorPalette.length];
+  }
+
+  function getSecondaryFeatureId() {
+    return state.selectedFeatureIds.find((featureId) => featureId !== state.selectedFeatureId) || "";
+  }
+
+  function buildColorGradient(colors) {
+    const filtered = colors.filter(Boolean);
+    if (!filtered.length) {
+      return "#aebbc7";
+    }
+    if (filtered.length === 1) {
+      return filtered[0];
+    }
+    const step = 360 / filtered.length;
+    return `conic-gradient(${filtered.map((color, index) => `${color} ${Math.round(index * step)}deg ${Math.round((index + 1) * step)}deg`).join(", ")})`;
   }
 
   function groupPointsByDistrict() {
@@ -824,19 +946,92 @@
     return questionColorPalette[Math.abs(hashString(featureId)) % questionColorPalette.length];
   }
 
-  function pointFillColor(point) {
+  function getAreaColor(feature) {
+    if (getAreaScope(feature) === "value" && feature.properties.attested_value) {
+      return getAnswerColor(feature.properties.feature_id, feature.properties.attested_value);
+    }
+    return getFeatureBaseColor(feature.properties.feature_id);
+  }
+
+  function getPointMarkerConfig(point, isSelected) {
+    const activeObservation = state.selectedFeatureId ? findPointObservation(point.point_id, state.selectedFeatureId) : null;
+    const secondaryFeatureId = getSecondaryFeatureId();
+    const secondaryObservation = secondaryFeatureId ? findPointObservation(point.point_id, secondaryFeatureId) : null;
+    const activeColors = activeObservation ? getObservationAnswers(activeObservation).map((answer) => getAnswerColor(state.selectedFeatureId, answer)) : [];
+    const hasAnyObservationInFocus = state.selectedFeatureIds.some((featureId) => Boolean(findPointObservation(point.point_id, featureId)));
+
     if (!state.selectedFeatureIds.length) {
-      return "#3d78a8";
+      return {
+        size: isSelected ? 15 : 9,
+        colors: ["#3d78a8"],
+        borderColor: isSelected ? "#0f1720" : "#dbe3ea",
+        borderWidth: isSelected ? 2.2 : 0.8,
+        outerRingColor: "",
+        isInFocus: true,
+      };
     }
-    if (state.selectedFeatureId && findPointObservation(point.point_id, state.selectedFeatureId)) {
-      return getFeatureBaseColor(state.selectedFeatureId);
+
+    if (activeObservation) {
+      return {
+        size: isSelected ? 17 : (activeColors.length > 1 ? 13 : 11),
+        colors: activeColors.length ? activeColors : [getFeatureBaseColor(state.selectedFeatureId)],
+        borderColor: "#f8fbff",
+        borderWidth: isSelected ? 2.1 : 1.2,
+        outerRingColor: secondaryObservation ? getFeatureBaseColor(secondaryFeatureId) : (isSelected ? "#0f1720" : ""),
+        isInFocus: true,
+      };
     }
-    for (const featureId of state.selectedFeatureIds) {
-      if (findPointObservation(point.point_id, featureId)) {
-        return getFeatureBaseColor(featureId);
-      }
+
+    if (secondaryObservation) {
+      return {
+        size: isSelected ? 15 : 10,
+        colors: ["#dde5ec"],
+        borderColor: getFeatureBaseColor(secondaryFeatureId),
+        borderWidth: 2.2,
+        outerRingColor: isSelected ? "#0f1720" : "",
+        isInFocus: true,
+      };
     }
-    return "#aebbc7";
+
+    return {
+      size: isSelected ? 13 : (hasAnyObservationInFocus ? 8 : 7),
+      colors: ["#aebbc7"],
+      borderColor: isSelected ? "#0f1720" : "#dbe3ea",
+      borderWidth: isSelected ? 2 : 0.6,
+      outerRingColor: "",
+      isInFocus: false,
+    };
+  }
+
+  function buildPointMarkerHtml(config) {
+    const shadowParts = [];
+    if (config.outerRingColor) {
+      shadowParts.push(`0 0 0 2px ${config.outerRingColor}`);
+    }
+    const boxShadow = shadowParts.length ? `box-shadow:${shadowParts.join(",")};` : "";
+    return `<div class="variant-marker" style="width:${config.size}px;height:${config.size}px;background:${buildColorGradient(config.colors)};border:${config.borderWidth}px solid ${config.borderColor};${boxShadow}"></div>`;
+  }
+
+  function buildLegendMarkerHtml(config) {
+    return buildPointMarkerHtml(Object.assign({ size: 12, colors: ["#3d78a8"], borderColor: "#dbe3ea", borderWidth: 1, outerRingColor: "" }, config || {}));
+  }
+
+  function buildPointTooltip(point) {
+    const rows = [`<strong>${escapeHtml(point.settlement)}</strong>`, escapeHtml(point.district)];
+    if (state.selectedFeatureId) {
+      const feature = featuresById.get(state.selectedFeatureId);
+      const observation = findPointObservation(point.point_id, state.selectedFeatureId);
+      const answers = observation ? getObservationAnswers(observation).join(" / ") : "нет ответа";
+      rows.push(`${escapeHtml(feature ? feature.feature_name : state.selectedFeatureId)}: ${escapeHtml(answers)}`);
+    }
+    const secondaryFeatureId = getSecondaryFeatureId();
+    if (secondaryFeatureId) {
+      const secondaryFeature = featuresById.get(secondaryFeatureId);
+      const secondaryObservation = findPointObservation(point.point_id, secondaryFeatureId);
+      const secondaryAnswers = secondaryObservation ? getObservationAnswers(secondaryObservation).join(" / ") : "нет ответа";
+      rows.push(`${escapeHtml(secondaryFeature ? secondaryFeature.feature_name : secondaryFeatureId)}: ${escapeHtml(secondaryAnswers)}`);
+    }
+    return rows.join("<br>");
   }
 
   function featureMatchesQuery(feature, query) {
@@ -887,7 +1082,9 @@
   function buildAreaPopup(feature) {
     const featureMeta = featuresById.get(feature.properties.feature_id);
     const featureLabel = featureMeta ? featureMeta.feature_name : feature.properties.feature_id;
-    return `<strong>${escapeHtml(feature.properties.title || "Ареал")}</strong><br>Вопрос: ${escapeHtml(featureLabel)}<br>Источник: ${feature.properties.source === "auto" ? "предварительная генерация" : "ручной GeoJSON"}<br>${escapeHtml(feature.properties.status_note || "")}`;
+    const answerLabel = feature.properties.attested_value ? `<br>Ответ: ${escapeHtml(feature.properties.attested_value)}` : "";
+    const compareLabel = feature.properties.compare_role === "secondary" ? "<br>Роль: второй вопрос в сравнении" : "";
+    return `<strong>${escapeHtml(feature.properties.title || "Ареал")}</strong><br>Вопрос: ${escapeHtml(featureLabel)}${answerLabel}${compareLabel}<br>Источник: ${feature.properties.source === "auto" ? "предварительная генерация" : "ручной GeoJSON"}<br>${escapeHtml(feature.properties.status_note || "")}`;
   }
 
   function buildIsoglossPopup(feature) {

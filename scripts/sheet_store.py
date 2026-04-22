@@ -12,6 +12,9 @@ from urllib.request import urlopen
 import pandas as pd
 
 
+MAX_ANSWER_COLUMNS = 6
+LEGACY_ANSWER_FIELDS = ["unit1", "unit2"]
+EXPECTED_ANSWER_FIELDS = [f"answer_{index}" for index in range(1, MAX_ANSWER_COLUMNS + 1)]
 EXPECTED_MAP_FIELDS = [
     "region",
     "district",
@@ -19,8 +22,7 @@ EXPECTED_MAP_FIELDS = [
     "lat",
     "lon",
     "question",
-    "unit1",
-    "unit2",
+    *EXPECTED_ANSWER_FIELDS,
     "comment",
 ]
 
@@ -28,7 +30,11 @@ EXPECTED_MAP_FIELDS = [
 def normalize_rows(rows: Iterable[dict]) -> List[dict]:
     normalized_rows: List[dict] = []
     for row in rows:
-        normalized = {field: normalize_cell(row.get(field, "")) for field in EXPECTED_MAP_FIELDS}
+        normalized = {field: "" for field in EXPECTED_MAP_FIELDS}
+        for field in ("region", "district", "settlement", "lat", "lon", "question", "comment"):
+            normalized[field] = normalize_cell(row.get(field, ""))
+        for index, answer in enumerate(extract_row_answers(row)[: len(EXPECTED_ANSWER_FIELDS)], start=1):
+            normalized[f"answer_{index}"] = answer
         if any(normalized.values()):
             normalized_rows.append(normalized)
     return normalized_rows
@@ -38,6 +44,29 @@ def normalize_cell(value: object) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+def extract_row_answers(row: dict) -> List[str]:
+    answer_fields = sorted(
+        (
+            field_name
+            for field_name in row.keys()
+            if str(field_name or "").startswith("answer_") and str(field_name).split("_", 1)[1].isdigit()
+        ),
+        key=lambda field_name: int(str(field_name).split("_", 1)[1]),
+    )
+    answer_fields.extend(field_name for field_name in LEGACY_ANSWER_FIELDS if field_name not in answer_fields)
+
+    answers: List[str] = []
+    seen: set[str] = set()
+    for field_name in answer_fields:
+        cleaned = normalize_cell(row.get(field_name, ""))
+        normalized = cleaned.lower()
+        if not cleaned or normalized in seen:
+            continue
+        answers.append(cleaned)
+        seen.add(normalized)
+    return answers
 
 
 def parse_google_sheet_url(sheet_url: str) -> Tuple[str, Optional[int]]:
