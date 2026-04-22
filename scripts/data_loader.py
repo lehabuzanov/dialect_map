@@ -21,6 +21,7 @@ EXPECTED_MAP_FIELDS = [
     "comment",
 ]
 DEFAULT_MAP_DATA_FILES = [
+    "atlas.csv",
     "dialect_map_data_answers_v2.csv",
     "dialect_map_data.csv",
 ]
@@ -73,7 +74,15 @@ def load_project_data(
     points, features, observations = normalize_map_rows(resolved_rows)
 
     border_geojson = repair_admin_geojson_names(load_geojson(geojson_root / "udmurtia_border.geojson"))
-    districts_geojson = repair_admin_geojson_names(load_geojson(geojson_root / "districts.geojson"))
+    regions_geojson = repair_admin_geojson_names(load_geojson(geojson_root / "regions_context.geojson"))
+    districts_geojson = repair_admin_geojson_names(
+        load_preferred_geojson(
+            [
+                geojson_root / "districts_context.geojson",
+                geojson_root / "districts.geojson",
+            ]
+        )
+    )
     areas = load_geojson_directory(geojson_root / "areas", geometry_type="polygon")
     isoglosses = load_geojson_directory(geojson_root / "isoglosses", geometry_type="line")
     ui_notes = read_text_with_fallback(notes_root / "05_ui_notes.txt")
@@ -102,9 +111,9 @@ def load_project_data(
             "repository_url": "https://github.com/lehabuzanov/dialect_map",
             "map": {
                 "base_label": "OpenFreeMap с тематическими слоями",
-                "min_zoom": 7,
+                "min_zoom": 6,
                 "max_zoom": 12,
-                "focus_zoom": 10,
+                "focus_zoom": 9,
             },
             "boundary_sources": [
                 {
@@ -121,6 +130,7 @@ def load_project_data(
         "map_styles": [],
         "geojson": {
             "border": border_geojson,
+            "regions": regions_geojson,
             "districts": districts_geojson,
             "landscapes": [],
             "areas": areas,
@@ -338,6 +348,14 @@ def load_geojson(path: Path) -> Optional[dict]:
     if not path.exists():
         return None
     return json.loads(read_text_with_fallback(path))
+
+
+def load_preferred_geojson(paths: Sequence[Path]) -> Optional[dict]:
+    for path in paths:
+        payload = load_geojson(path)
+        if payload:
+            return payload
+    return None
 
 
 def repair_admin_geojson_names(payload: Optional[dict]) -> Optional[dict]:

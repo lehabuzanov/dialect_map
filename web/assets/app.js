@@ -44,6 +44,7 @@
   const provisionalAreas = (data.geojson.areas_provisional || []).slice();
   const isoglosses = (data.geojson.isoglosses || []).concat(data.geojson.isoglosses_provisional || []);
   const borderBounds = getGeoJsonBounds(data.geojson.border);
+  const mapExtentBounds = getGeoJsonBounds(data.geojson.regions || data.geojson.border);
   const sortedFeatures = data.features.slice().sort((left, right) => collator.compare(left.alphabet_key || left.feature_name, right.alphabet_key || right.feature_name));
   const atlasSections = (data.meta.sections || []).slice();
   const questionColorPalette = ["#2c5aa0", "#c76a0e", "#147a7e", "#6a49a5", "#8f2d2d", "#648b23"];
@@ -87,7 +88,7 @@
     attributionControl: true,
     minZoom: data.meta.map.min_zoom,
     maxZoom: data.meta.map.max_zoom,
-    maxBounds: borderBounds ? borderBounds.pad(0.015) : undefined,
+    maxBounds: mapExtentBounds ? mapExtentBounds.pad(0.02) : undefined,
     maxBoundsViscosity: 1.0,
     worldCopyJump: false
   });
@@ -416,6 +417,8 @@
     const rows = [
       '<div class="legend-row"><span class="legend-point"></span><span>Населённый пункт</span></div>',
       '<div class="legend-row"><span class="legend-point is-selected"></span><span>Выбранный пункт</span></div>',
+      '<div class="legend-row"><span class="legend-line is-region"></span><span>Граница Удмуртии</span></div>',
+      '<div class="legend-row"><span class="legend-line is-context"></span><span>Граница соседнего региона</span></div>',
       '<div class="legend-row"><span class="legend-line"></span><span>Граница района</span></div>',
       '<div class="legend-row"><span class="legend-area"></span><span>Ручной ареал</span></div>',
       '<div class="legend-row"><span class="legend-area is-provisional"></span><span>Предварительный ареал</span></div>',
@@ -469,9 +472,26 @@
   }
 
   function renderDistrictLayers(fitBounds) {
-    if (data.geojson.border) {
+    const useContextBounds = !state.selectedPointId && !state.selectedDistrict && !state.selectedFeatureIds.length;
+    if (data.geojson.regions) {
+      const regionLayer = L.geoJSON(data.geojson.regions, {
+        pane: "districts",
+        style: (feature) => regionBoundaryStyle(feature, false),
+        onEachFeature: (feature, layer) => {
+          const label = buildRegionTooltip(feature);
+          layer.bindTooltip(label, { sticky: true, className: "district-tooltip" });
+          layer.on("mouseover", () => layer.setStyle(regionBoundaryStyle(feature, true)));
+          layer.on("mouseout", () => layer.setStyle(regionBoundaryStyle(feature, false)));
+        }
+      }).addTo(layerGroups.districts);
+      if (useContextBounds) {
+        collectLayerBounds(fitBounds, regionLayer);
+      }
+    } else if (data.geojson.border) {
       const borderLayer = L.geoJSON(data.geojson.border, { pane: "districts", style: { color: "#3f5366", weight: 2.6, fillOpacity: 0.18, fillColor: "#e8eef3" } }).addTo(layerGroups.districts);
-      collectLayerBounds(fitBounds, borderLayer);
+      if (useContextBounds) {
+        collectLayerBounds(fitBounds, borderLayer);
+      }
     }
     if (!data.geojson.districts) {
       return;
@@ -491,7 +511,9 @@
         });
       }
     }).addTo(layerGroups.districts);
-    collectLayerBounds(fitBounds, districtLayer);
+    if (useContextBounds) {
+      collectLayerBounds(fitBounds, districtLayer);
+    }
   }
 
   function renderAreaLayers(fitBounds) {
@@ -551,9 +573,34 @@
     });
   }
 
+  function regionBoundaryStyle(feature, hovered) {
+    const properties = feature.properties || {};
+    const isHomeRegion = properties.boundary_role === "home";
+    const boundaryColor = properties.boundary_color || (isHomeRegion ? "#3f5366" : "#6c8ca8");
+    return {
+      color: boundaryColor,
+      weight: hovered ? (isHomeRegion ? 3.4 : 2.8) : (isHomeRegion ? 3 : 2.2),
+      dashArray: isHomeRegion ? null : (hovered ? "10 7" : "8 6"),
+      fillColor: boundaryColor,
+      fillOpacity: isHomeRegion ? (hovered ? 0.08 : 0.05) : (hovered ? 0.04 : 0.02),
+      opacity: hovered ? 0.98 : 0.9,
+      interactive: true,
+    };
+  }
+
   function districtStyle(feature, hovered) {
+    const properties = feature.properties || {};
     const selected = getDistrictName(feature) === state.selectedDistrict;
-    return { color: selected ? "#53667a" : hovered ? "#6f7d89" : baseStylePalette.boundary_district, weight: selected ? 2.1 : hovered ? 1.7 : 1.15, fillColor: selected ? "#d9e4ee" : hovered ? "#edf3f8" : "#f7fafc", fillOpacity: selected ? 0.28 : hovered ? 0.2 : 0.12 };
+    const isNeighbor = properties.boundary_role === "neighbor";
+    const boundaryColor = properties.boundary_color || baseStylePalette.boundary_district;
+    return {
+      color: selected ? darkenColor(boundaryColor, 0.18) : hovered ? darkenColor(boundaryColor, 0.12) : boundaryColor,
+      weight: selected ? 2.1 : hovered ? 1.7 : (isNeighbor ? 1.45 : 1.15),
+      dashArray: isNeighbor ? (selected ? "8 5" : "6 4") : null,
+      fillColor: isNeighbor ? "#fdfdfd" : (selected ? "#d9e4ee" : hovered ? "#edf3f8" : "#f7fafc"),
+      fillOpacity: selected ? 0.18 : hovered ? 0.1 : 0.03,
+      opacity: selected ? 1 : 0.88,
+    };
   }
 
   function fitMapToCurrentSelection(bounds) {
@@ -575,8 +622,8 @@
       map.fitBounds(L.latLngBounds(bounds).pad(0.14));
       return;
     }
-    if (borderBounds) {
-      map.fitBounds(borderBounds.pad(0.04));
+    if (mapExtentBounds) {
+      map.fitBounds(mapExtentBounds.pad(0.04));
     }
   }
 
@@ -739,6 +786,9 @@
         return false;
       }
       if (!matchesPointSearch(point, query)) {
+        return false;
+      }
+      if (state.selectedFeatureIds.length && !state.selectedFeatureIds.some((featureId) => Boolean(findPointObservation(point.point_id, featureId)))) {
         return false;
       }
       return true;
@@ -1096,6 +1146,13 @@
     return `<strong>Изоглосса</strong><br>Пара вопросов: ${escapeHtml(labels.join(" ↔ "))}<br>Источник: ${feature.properties.source === "auto" ? "автоматическая демонстрационная линия" : "ручной GeoJSON"}<br>Стиль: ${escapeHtml(feature.properties.style_code || "line_isogloss_major")}`;
   }
 
+  function buildRegionTooltip(feature) {
+    const properties = feature.properties || {};
+    const regionLabel = properties.short_name || properties.name || "Регион";
+    const roleLabel = properties.boundary_role === "home" ? "основной регион карты" : "соседний регион";
+    return `${escapeHtml(regionLabel)}<br>${escapeHtml(roleLabel)}`;
+  }
+
   function getDistrictName(feature) {
     return (feature.properties && feature.properties.name) || "Район";
   }
@@ -1111,6 +1168,19 @@
 
   function formatCoordinate(value) {
     return value == null ? "—" : Number(value).toFixed(4);
+  }
+
+  function darkenColor(color, factor) {
+    const match = String(color || "").match(/^#([0-9a-f]{6})$/i);
+    if (!match) {
+      return color || "#53667a";
+    }
+    const hex = match[1];
+    const channel = (index) => {
+      const value = parseInt(hex.slice(index, index + 2), 16);
+      return Math.max(0, Math.min(255, Math.round(value * (1 - factor))));
+    };
+    return `#${[channel(0), channel(2), channel(4)].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
   }
 
   function escapeHtml(value) {
