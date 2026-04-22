@@ -6,7 +6,7 @@
 
 - `streamlit_app.py` — точка входа приложения.
 - `requirements.txt` — зависимости для Streamlit Cloud.
-- `scripts/data_loader.py` — загрузка и нормализация основной таблицы `data/csv/dialect_map_data.csv`.
+- `scripts/data_loader.py` — загрузка и нормализация рабочей таблицы. Приоритетный локальный файл: `data/csv/dialect_map_data_answers_v2.csv`, резервный: `data/csv/dialect_map_data.csv`.
 - `scripts/area_generator.py` — построение предварительных ареалов и изоглосс.
 - `scripts/page_renderer.py` — подготовка HTML-страницы карты.
 - `web/` — шаблон, стили и JavaScript интерфейса.
@@ -16,7 +16,8 @@
 
 Приложение работает от одной итоговой таблицы:
 
-- `data/csv/dialect_map_data.csv`
+- `data/csv/dialect_map_data_answers_v2.csv`
+- резервный старый формат: `data/csv/dialect_map_data.csv`
 
 Структура строк:
 

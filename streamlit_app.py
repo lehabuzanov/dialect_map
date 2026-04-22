@@ -13,8 +13,8 @@ from streamlit.errors import StreamlitSecretNotFoundError
 
 ROOT = Path(__file__).resolve().parent
 SCRIPTS_DIR = ROOT / "scripts"
-APP_VERSION = "2026-04-22-answer-variants-v2"
-DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1uAIyIL0ySGi4tOnh3dMss27fmmA6s6LnZqWn2IaFltQ/edit?usp=sharing"
+APP_VERSION = "2026-04-22-answer-variants-v2-sheet-linked"
+DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1EvfoSab8bfGTlZd8ETutuNNpvuZor-2I4KXsHuihKzE/edit?usp=sharing"
 REPOSITORY_URL = "https://github.com/lehabuzanov/dialect_map"
 THEME_OPTIONS = {
     "night": "Тёмно-синяя",
